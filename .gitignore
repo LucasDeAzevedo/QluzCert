@@ -4,6 +4,9 @@ __pycache__/
 *.pyo
 *.pyd
 
+# Virtual environment
+venv/
+
 # Django local settings
 db.sqlite3
 
