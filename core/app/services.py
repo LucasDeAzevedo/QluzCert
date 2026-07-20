@@ -1,10 +1,12 @@
 import io
 import os
+from datetime import datetime
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import pandas as pd
 from .models import Colaborador, PlanilhaRegistro
+from core.app_Gestor.models import AppState
 
 def sincronizar_processar_e_salvar_copias(file_id):
     """
@@ -107,6 +109,17 @@ def sincronizar_processar_e_salvar_copias(file_id):
     df = df_cru.iloc[idx_cabecalho + 1:].reset_index(drop=True)
     df.columns = normalized_headers
 
+    display_columns = []
+    for raw_label, field_name in zip(headers, normalized_headers):
+        label = str(raw_label).strip() if raw_label is not None else field_name
+        if not label:
+            label = field_name
+        display_columns.append({
+            'label': label,
+            'field': field_name,
+            'class': f'col-{field_name}',
+        })
+
     # --- TRATAMENTO DE COLUNAS DUPLICADAS ---
     novas_colunas = []
     ja_viu_pago = False
@@ -126,6 +139,7 @@ def sincronizar_processar_e_salvar_copias(file_id):
     # --- PARTE 3: ATUALIZAR O BANCO DE DADOS DJANGO (PlanilhaRegistro) ---
     contagem_novos = 0
     contagem_registros = 0
+    snapshot_rows = []
     for _, linha in df.iterrows():
         # Cria um dicionário com os valores das colunas normalizadas
         row = {normalize_header(str(k)): (v if pd.notna(v) else None) for k, v in linha.items()}
@@ -213,7 +227,7 @@ def sincronizar_processar_e_salvar_copias(file_id):
             # ignora linhas sem identificador útil
             continue
 
-        PlanilhaRegistro.objects.create(
+        registro = PlanilhaRegistro.objects.create(
             data_venda=data_venda,
             contador_parceiro=str(contador_parceiro).strip() if contador_parceiro else '',
             contador_contabilidade=str(contador_contabilidade).strip() if contador_contabilidade else '',
@@ -238,6 +252,32 @@ def sincronizar_processar_e_salvar_copias(file_id):
             valor_liquido=valor_liquido,
         )
         contagem_registros += 1
+
+        row_cells = []
+        for col in display_columns:
+            value = linha.get(col['field'], None)
+
+            if pd.isna(value):
+                value = ''
+            elif isinstance(value, (pd.Timestamp, datetime)):
+                value = value.strftime('%d/%m/%Y')
+            elif isinstance(value, bool):
+                value = 'Sim' if value else 'Não'
+            elif hasattr(value, 'quantize') or isinstance(value, float):
+                try:
+                    value = f"{float(value):.2f}".replace('.', ',')
+                except Exception:
+                    value = str(value)
+            elif value is None:
+                value = ''
+
+            row_cells.append({'class': col['class'], 'value': value})
+
+        snapshot_rows.append({
+            'id': registro.id,
+            'cells': row_cells,
+            'data_registro': registro.data_registro.isoformat() if registro.data_registro else '',
+        })
 
     # --- PARTE 4: GERAR COPIA ATUALIZADA (OFFLINE) ---
     # --- PARTE 4: GERAR COPIA ATUALIZADA (OFFLINE) ---
@@ -286,6 +326,17 @@ def sincronizar_processar_e_salvar_copias(file_id):
             resumable=True
         )
         service.files().update(fileId=file_id, media_body=media).execute()
+
+    AppState.objects.update_or_create(
+        key='sheet_sync',
+        defaults={
+            'data': {
+                'columns': display_columns,
+                'rows': snapshot_rows,
+                'updated_at': pd.Timestamp.utcnow().isoformat(),
+            }
+        }
+    )
 
     return contagem_registros or contagem_novos
 
