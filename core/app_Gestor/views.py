@@ -1,6 +1,7 @@
 from datetime import date
 
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.views.generic import TemplateView
 from django.contrib import messages
 from django.db import transaction
@@ -268,7 +269,7 @@ def sincronizar_drive(request):
     except Exception as e:
         messages.error(request, f"Erro ao acessar o Google Drive: {str(e)}")
 
-    return redirect('dashboard')
+    return redirect(f"{reverse('dashboard')}#clientes")
 
 
 def alertas_dashboard(request):
@@ -353,7 +354,7 @@ def editar_google_row(request, pk):
         except Exception as e:
             messages.warning(request, f'Registro salvo localmente, falha ao atualizar Drive: {str(e)}')
 
-        return redirect('dashboard')
+        return redirect(f"{reverse('dashboard')}#clientes")
 
     return render(request, 'google_edit.html', {'registro': registro})
 
@@ -425,7 +426,7 @@ def criar_google_row(request):
         else:
             messages.warning(request, f'Cliente criado localmente, falha ao atualizar Drive: {drive_error}')
 
-        return redirect('dashboard')
+        return redirect(f"{reverse('dashboard')}#clientes")
 
     return render(request, 'google_create.html')
 

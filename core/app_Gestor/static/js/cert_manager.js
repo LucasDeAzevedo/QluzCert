@@ -979,7 +979,7 @@ async function saveNovoCliente(event){
     if(!response.ok)throw new Error(data.error||'Falha ao criar cliente');
     showToast(data.drive_updated?'Cliente criado e planilha do Drive atualizada':'Cliente criado localmente (falha ao atualizar Drive)', data.drive_updated?'success':'info');
     closeModal(true);
-    setTimeout(()=>location.reload(),900);
+    setTimeout(()=>{ location.hash='clientes'; location.reload(); },900);
   }catch(err){
     console.error(err);
     showToast(err.message||'Erro ao criar cliente','error');

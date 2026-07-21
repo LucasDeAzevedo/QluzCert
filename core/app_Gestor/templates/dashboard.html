@@ -270,6 +270,12 @@
       });
     });
     showDjangoMessages();
+
+    var initialTab = (location.hash || '').replace('#', '');
+    if (initialTab && document.getElementById('view-' + initialTab)) {
+      nav(initialTab);
+      history.replaceState(null, '', location.pathname + location.search);
+    }
   });
 </script>
 </body>
