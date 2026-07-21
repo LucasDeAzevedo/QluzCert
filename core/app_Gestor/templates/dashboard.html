@@ -93,7 +93,7 @@
             <h3><i class="ti ti-table"></i>Planilha Importada do Google Drive</h3>
             <div class="column-selector" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px">
               {% for col in google_columns %}
-                <label style="font-size:13px"><input type="checkbox" class="column-toggle" data-col="{{ col.class }}" checked> {{ col.label }}</label>
+                <label class="column-toggle-label"><input type="checkbox" class="column-toggle" data-col="{{ col.class }}" checked> {{ col.label }}</label>
               {% endfor %}
             </div>
           </div>
