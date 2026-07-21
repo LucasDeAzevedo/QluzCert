@@ -1,5 +1,5 @@
 from datetime import date
-
+from .models import DocumentoCliente, PagamentoCliente
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.views.generic import TemplateView
@@ -21,7 +21,7 @@ from core.app.models import PlanilhaRegistro
 import io
 import pandas as pd
 from django.http import HttpResponse
-
+from django.db.models import Sum, Q
 
 DEFAULT_GOOGLE_COLUMNS = [
     {'label':'Data da Venda','field':'data_venda','class':'col-data-venda'},
@@ -278,7 +278,7 @@ def alertas_dashboard(request):
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class DashboardView(TemplateView):
-    template_name = 'dashboard.html'  # Certifique-se de que o caminho está correto conforme seus TEMPLATES
+    template_name = 'dashboard.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -287,8 +287,17 @@ class DashboardView(TemplateView):
             context['google_columns'], context['google_rows'] = _build_dashboard_from_snapshot(snapshot)
         else:
             context['google_columns'], context['google_rows'] = _build_dashboard_from_db()
-        # Fornece clientes iniciais a partir da planilha importada; se não houver dados,
-        # mantém o estado salvo localmente.
+
+        # --- CORREÇÃO PRECISA: Soma o faturamento diretamente do banco onde pago_venda é True ---
+        from django.db.models import Sum
+
+        faturamento_db = ( PagamentoCliente.objects.filter(status=PagamentoCliente.STATUS_APPROVED).aggregate(total=Sum("valor"))["total"] or 0)
+        faturamento_total = float(faturamento_db)
+
+        import json
+        context['faturamento_recebido_json'] = json.dumps(faturamento_total, default=str)
+        # ----------------------------------------------------------------------------------------
+
         try:
             state = AppState.objects.filter(key='main').first()
             initial_clientes = state.data.get('clientes', []) if state and isinstance(state.data, dict) else []
@@ -302,7 +311,6 @@ class DashboardView(TemplateView):
 
         alertas = _build_alert_payload()
 
-        import json
         try:
             context['initial_clientes_json'] = json.dumps(initial_clientes, default=str)
         except Exception:
@@ -319,9 +327,8 @@ class DashboardView(TemplateView):
             context['alert_counts_json'] = json.dumps(alertas.get('counts', {}), default=str)
         except Exception:
             context['alert_counts_json'] = '{}'
+            
         return context
-
-
 def editar_google_row(request, pk):
     registro = get_object_or_404(PlanilhaRegistro, pk=pk)
     if request.method == 'POST':
@@ -693,16 +700,6 @@ def criar_pagamento_pix(request):
         'qr_code_base64': registro.qr_code_base64,
         'qr_code_copia_cola': registro.qr_code_copia_cola,
     })
-
-
-def _extrair_planilha_pk(cliente_ref):
-    # Exemplo esperado: planilha-123
-    if not cliente_ref or not cliente_ref.startswith('planilha-'):
-        return None
-    try:
-        return int(cliente_ref.split('-', 1)[1])
-    except Exception:
-        return None
 
 
 def _marcar_pagamento_aprovado(pagamento):

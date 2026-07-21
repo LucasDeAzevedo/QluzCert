@@ -21,8 +21,6 @@ let precos = DB.get('precos')||[
   {id:5,tipo:'NF-e',validade:'1 ano',preco:120},
 ];
 let editingId = null;
-let triagemStep = 0;
-let triagemData = {};
 let backendAlertData = (typeof window !== 'undefined' && window.INITIAL_ALERTS) ? window.INITIAL_ALERTS : null;
 
 const STATUS_LIST = ['Novo Lead','Documentação Pendente','Aguardando Pagamento','Agendado para Vídeo','Emitido'];
@@ -300,8 +298,50 @@ function buildLocalAlertData(){
   return {counts, renovacoes, pagamentos};
 }
 
-function getAlertData(){
-  return normalizeAlertData(backendAlertData || buildLocalAlertData());
+function getAlertData() {
+  // 1. Obtém os dados de alerta vindos do backend ou gerados localmente
+  let baseData = normalizeAlertData(backendAlertData || buildLocalAlertData());
+
+  // 2. Filtro Inteligente para Pagamentos
+  const filterPagamentos = (alertArray) => alertArray.filter(alerta => {
+      const clienteLocal = clientes.find(c => String(c.id) === String(alerta.id));
+      if (clienteLocal) {
+          // Se o cliente foi marcado como pago localmente na interface, esconde o alerta
+          return !clienteLocal.pago; 
+      }
+      return true; // Se o cliente não constar localmente, mantém a informação original
+  });
+
+  // 3. Filtro Inteligente para Renovações (Vencimentos)
+  const filterRenovacoes = (alertArray) => alertArray.filter(alerta => {
+      const clienteLocal = clientes.find(c => String(c.id) === String(alerta.id));
+      if (clienteLocal) {
+          // Se o status local for alterado para "Emitido" (problema resolvido), esconde o alerta
+          return clienteLocal.status !== 'Emitido';
+      }
+      return true;
+  });
+
+  // 4. Aplica a limpeza nas listas em tempo real
+  baseData.pagamentos.urgentes = filterPagamentos(baseData.pagamentos.urgentes);
+  baseData.pagamentos.normais = filterPagamentos(baseData.pagamentos.normais);
+  
+  baseData.renovacoes.urgentes = filterRenovacoes(baseData.renovacoes.urgentes);
+  baseData.renovacoes.normais = filterRenovacoes(baseData.renovacoes.normais);
+
+  // 5. Recalcula os números dos crachás (badges) no menu lateral
+  baseData.counts.pagamentos_urgentes = baseData.pagamentos.urgentes.length;
+  baseData.counts.pagamentos_normais = baseData.pagamentos.normais.length;
+  baseData.counts.renovacoes_urgentes = baseData.renovacoes.urgentes.length;
+  baseData.counts.renovacoes_normais = baseData.renovacoes.normais.length;
+  
+  baseData.counts.alertas_totais = 
+      baseData.counts.pagamentos_urgentes + 
+      baseData.counts.pagamentos_normais + 
+      baseData.counts.renovacoes_urgentes + 
+      baseData.counts.renovacoes_normais;
+
+  return baseData;
 }
 
 function getCurrentViewId(){
@@ -347,7 +387,6 @@ const PAGE_CONFIG = {
   clientes:{title:'Clientes', render:renderClientes},
   funil:{title:'Funil de Atendimento', render:renderKanban},
   renovacoes:{title:'Alertas de Renovação', render:renderRenovacoes},
-  triagem:{title:'Triagem de Validação', render:startTriagem},
   pagamentos:{title:'Alertas de Pagamento', render:renderInadimplencia},
   parceiros:{title:'Parceiros Comerciais', render:renderParceiros},
   tabela:{title:'Tabela de Preços', render:renderTabela},
@@ -461,7 +500,11 @@ function renderDashboard(){
   const emitidos=clientes.filter(c=>c.status==='Emitido').length;
   const leads=clientes.filter(c=>c.status==='Novo Lead').length;
   const vencendo=clientes.filter(c=>c.dataVencimento&&daysUntil(c.dataVencimento)<=60).length;
-  const faturamento=clientes.filter(c=>c.pago).reduce((s,c)=>s+(parseFloat(c.valorCobrado)||0),0);
+ // Lê o valor processado pelo Django na tabela. Se não existir, faz a soma local.
+  const faturamento = (typeof window !== 'undefined' && window.INITIAL_FATURAMENTO !== undefined)
+    ? Number(window.INITIAL_FATURAMENTO)
+    : clientes.filter(c=>c.pago).reduce((s,c)=>s+(parseFloat(c.valorCobrado)||0),0);
+
   document.getElementById('dashboard-metrics').innerHTML=`
     <div class="metric-card accent"><div class="metric-label">Total de Clientes</div><div class="metric-val">${total}</div><div class="metric-sub">${leads} novos leads</div></div>
     <div class="metric-card success"><div class="metric-label">Emitidos</div><div class="metric-val">${emitidos}</div><div class="metric-sub">${Math.round(total?emitidos/total*100:0)}% do total</div></div>
@@ -473,11 +516,11 @@ function renderDashboard(){
     .sort((a,b)=>(a.dias??9999)-(b.dias??9999))
     .slice(0,5);
   const al=document.getElementById('dashboard-alerts');
-  if(!urgentes.length){al.innerHTML='<p style="font-size:13px;color:var(--muted);text-align:center;padding:20px">Nenhum alerta no momento ✓</p>';return}
-  al.innerHTML=urgentes.map(c=>{
+  if(!urgentes.length){al.innerHTML='<p style="font-size:13px;color:var(--muted);text-align:center;padding:20px">Nenhum alerta no momento ✓</p>';}
+  else { al.innerHTML=urgentes.map(c=>{
     const kind = c.categoria === 'pagamento' ? 'pagamento' : 'renovacao';
     return renderAlertCard(c, kind);
-  }).join('');
+  }).join(''); }
   const recent=clientes.slice().sort((a,b)=>new Date(b.criadoEm||0)-new Date(a.criadoEm||0)).slice(0,6);
   document.getElementById('dashboard-recent').innerHTML=`<table style="width:100%;border-collapse:collapse">${recent.map(c=>`
     <tr onclick="openDetail('${c.id}')" style="cursor:pointer;border-bottom:1px solid var(--border)">
@@ -485,6 +528,16 @@ function renderDashboard(){
       <td style="padding:10px 16px"><span class="badge ${STATUS_CLASSES[STATUS_LIST.indexOf(c.status)]||'badge-novo'}">${c.status||'Novo Lead'}</span></td>
       <td style="padding:10px 16px;color:var(--muted);font-size:12px">${fmtDate(c.criadoEm)}</td>
     </tr>`).join('')}</table>`;
+  const notificados=clientes.filter(c=>Array.isArray(c.notificacoes)&&c.notificacoes.length).sort((a,b)=>(b.notificacoes?.length||0)-(a.notificacoes?.length||0)).slice(0,6);
+  const panel=document.getElementById('dashboard-notificados');
+  if(panel){
+    panel.innerHTML = notificados.length ? `<table style="width:100%;border-collapse:collapse">${notificados.map(c=>`
+      <tr onclick="openDetail('${c.id}')" style="cursor:pointer;border-bottom:1px solid var(--border)">
+        <td style="padding:10px 16px;font-size:13px"><strong>${c.nome}</strong></td>
+        <td style="padding:10px 16px;color:var(--muted);font-size:12px">${(c.notificacoes||[]).length} aviso(s)</td>
+        <td style="padding:10px 16px;color:var(--muted);font-size:12px">${fmtDate((c.notificacoes||[])[0]?.data||c.criadoEm)}</td>
+      </tr>`).join('')}</table>` : '<p style="font-size:13px;color:var(--muted);text-align:center;padding:20px">Nenhum cliente notificado ainda.</p>';
+  }
 }
 
 // ==================== CLIENTES ====================
@@ -611,68 +664,36 @@ function renderInadimplencia(){
   document.getElementById('pag-normal').innerHTML=normais.length?normais.map(c=>renderAlertCard(c,'pagamento')).join(''):'<p style="font-size:13px;color:var(--muted)">Nenhum pagamento a vencer ✓</p>';
 }
 
-// ==================== TRIAGEM ====================
-function startTriagem(){
-  triagemStep=0;triagemData={};renderTriagem();
-}
-const triagem=[
-  {q:'O cliente possui CNH (Carteira Nacional de Habilitação)?',opts:['Sim, possui CNH','Não possui CNH']},
-  {q:'O cliente já teve certificado digital anteriormente?',opts:['Sim, já teve certificado','Não, é a primeira vez']},
-  {q:'Verificar no Portal Soluti: existe biometria cadastrada para este cliente?',opts:['Sim, biometria encontrada','Não encontrada']},
-];
-function renderTriagem(){
-  const el=document.getElementById('triagem-content');
-  let html='<div style="margin-bottom:14px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Triagem de Validação</div>';
-  if(triagemStep===0){
-    html+=`<div class="triagem-q">${triagem[0].q}</div><div class="triagem-opts">${triagem[0].opts.map((o,i)=>`<div class="triagem-opt" onclick="triagemAnswer(0,${i})">${o}</div>`).join('')}</div>`;
-  } else if(triagemStep===1){
-    if(triagemData[0]===0){html+=`<div class="triagem-result"><i class="ti ti-video" style="margin-right:6px"></i>Validação por Videoconferência — cliente possui CNH.</div>`;html+=`<button class="btn" style="margin-top:12px" onclick="startTriagem()"><i class="ti ti-refresh"></i> Nova triagem</button>`;
-    } else {html+=`<div class="triagem-q">${triagem[1].q}</div><div class="triagem-opts">${triagem[1].opts.map((o,i)=>`<div class="triagem-opt" onclick="triagemAnswer(1,${i})">${o}</div>`).join('')}</div>`;}
-  } else if(triagemStep===2){
-    if(triagemData[1]===1){html+=`<div class="triagem-result warn"><i class="ti ti-map-pin" style="margin-right:6px"></i>Validação Presencial obrigatória — sem CNH e sem certificado anterior.</div>`;html+=`<button class="btn" style="margin-top:12px" onclick="startTriagem()"><i class="ti ti-refresh"></i> Nova triagem</button>`;
-    } else {html+=`<div class="triagem-q">${triagem[2].q}</div><div class="triagem-opts">${triagem[2].opts.map((o,i)=>`<div class="triagem-opt" onclick="triagemAnswer(2,${i})">${o}</div>`).join('')}</div>`;}
-  } else if(triagemStep===3){
-    if(triagemData[2]===0){html+=`<div class="triagem-result"><i class="ti ti-video" style="margin-right:6px"></i>Validação por Videoconferência — biometria encontrada no Portal Soluti.</div>`;}
-    else{html+=`<div class="triagem-result warn"><i class="ti ti-map-pin" style="margin-right:6px"></i>Validação Presencial obrigatória — sem biometria cadastrada.</div>`;}
-    html+=`<button class="btn" style="margin-top:12px" onclick="startTriagem()"><i class="ti ti-refresh"></i> Nova triagem</button>`;
-  }
-  el.innerHTML=html;
-}
-function triagemAnswer(q,ans){triagemData[q]=ans;triagemStep++;renderTriagem()}
-
-const TRIAGEM_QUESTIONS = [
-  { key:'temCnh', label:'O cliente possui CNH (Carteira Nacional de Habilitação)?', options:['Sim, possui CNH','Não possui CNH'] },
-  { key:'jaTeveCertificado', label:'O cliente já teve certificado digital anteriormente?', options:['Sim, já teve certificado','Não, é a primeira vez'] },
-  { key:'temBiometria', label:'Verificar no Portal Soluti: existe biometria cadastrada para este cliente?', options:['Sim, biometria encontrada','Não encontrada'] },
-];
-function getTriagemSummary(triagem){
-  if(!triagem || typeof triagem !== 'object') return 'Triagem não registrada';
-  const cnh = triagem.temCnh;
-  const anterior = triagem.jaTeveCertificado;
-  const biometria = triagem.temBiometria;
-  if(cnh === 0) return 'Videoconferência - cliente possui CNH';
-  if(cnh === 1 && anterior === 1) return 'Presencial obrigatória - sem CNH e sem certificado anterior';
-  if(cnh === 1 && anterior === 0 && biometria === 0) return 'Videoconferência - biometria encontrada';
-  if(cnh === 1 && anterior === 0 && biometria === 1) return 'Presencial obrigatória - sem biometria cadastrada';
-  return 'Triagem em andamento';
-}
-function renderTriagemFields(client){
-  const triagem = client.triagem || {};
-  return `
-    <div class="field form-full"><label>Triagem de Validação</label><div style="font-size:12px;color:var(--muted);margin-top:4px">Registre aqui as características do cliente que determinam a validação.</div></div>
-    ${TRIAGEM_QUESTIONS.map((item)=>{
-      const current = triagem[item.key];
-      return `<div class="field form-full"><label>${item.label}</label><select id="triagem-${item.key}">${item.options.map((opt, optIndex)=>`<option value="${optIndex}"${current===optIndex?' selected':''}>${opt}</option>`).join('')}</select></div>`;
-    }).join('')}
-    <div class="field form-full"><label>Resumo da triagem</label><input id="triagem-resumo" value="${getTriagemSummary(triagem)}" readonly></div>
-  `;
-}
-
 function getPlanilhaPkFromClientId(clientId){
-  if(!clientId || !String(clientId).startsWith('planilha-')) return null;
-  const raw = String(clientId).split('-', 2)[1];
-  const pk = parseInt(raw, 10);
-  return Number.isFinite(pk) ? pk : null;
+  if(clientId === null || clientId === undefined || clientId === '') return null;
+  const raw = String(clientId).trim();
+  if(!raw) return null;
+  const match = raw.match(/^(?:planilha[-_]?|)(\d+)$/i);
+  if(match) return parseInt(match[1], 10);
+  if(raw.startsWith('planilha-')){
+    const fallback = raw.split('-', 2)[1];
+    const pk = parseInt(fallback, 10);
+    return Number.isFinite(pk) ? pk : null;
+  }
+  return null;
+}
+
+function resolveClienteById(clientId){
+  const raw = String(clientId || '').trim();
+  if(!raw) return null;
+  const direct = clientes.find(c => String(c.id) === raw || String(c.id) === raw.replace(/^planilha[-_]?/i, ''));
+  if(direct) return direct;
+  const planilhaPk = getPlanilhaPkFromClientId(raw);
+  if(planilhaPk !== null){
+    const byPlanilha = clientes.find(c => Number(getPlanilhaPkFromClientId(c.id)) === planilhaPk || Number(c.planilhaPk) === planilhaPk || Number(c.planilha_id) === planilhaPk || Number(c.planilhaId) === planilhaPk);
+    if(byPlanilha) return byPlanilha;
+  }
+  const simplified = raw.replace(/^planilha[-_]?/i, '');
+  if(simplified !== raw){
+    const bySimplified = clientes.find(c => String(c.id) === simplified || String(c.planilhaPk) === simplified || String(c.planilha_id) === simplified || String(c.planilhaId) === simplified);
+    if(bySimplified) return bySimplified;
+  }
+  return null;
 }
 
 function openDocumentosCliente(clientId){
@@ -828,7 +849,8 @@ function deletePreco(id){if(confirm('Remover?')){precos=precos.filter(p=>p.id!==
 // ==================== MODAIS ====================
 let modalTriggerEl=null;
 function openModal(type, extraId, triggerEl){
-  editingId=editingId||extraId||null;
+  const matched = resolveClienteById(extraId || editingId);
+  editingId = matched ? matched.id : (extraId || editingId || null);
   modalTriggerEl=triggerEl||document.activeElement;
   const overlay=document.getElementById('modal-overlay');
   const box=document.getElementById('modal-box');
@@ -838,6 +860,7 @@ function openModal(type, extraId, triggerEl){
   if(type==='parceiro')renderParceiroModal(box);
   if(type==='preco')renderPrecoModal(box);
   if(type==='contato')renderContatoModal(box,extraId||editingId);
+  if(type==='pagamento')renderPagamentoModal(box,extraId||editingId);
   const firstField=box.querySelector('input,select,textarea')||box.querySelector('button');
   if(firstField)firstField.focus();
 }
@@ -865,7 +888,7 @@ function handleModalKeydown(e){
 document.addEventListener('keydown',handleModalKeydown);
 
 function renderClienteModal(box){
-  const c=editingId?clientes.find(x=>x.id===editingId):{};
+  const c=resolveClienteById(editingId) || {};
   const pOpts=parceiros.map(p=>`<option value="${p.id}"${c.parceiroId===p.id?' selected':''}>${p.nome}</option>`).join('');
   const tOpts=precos.map(p=>`<option value="${p.tipo}"${c.tipoCert===p.tipo?' selected':''}>${p.tipo} — ${fmtMoney(p.preco)}</option>`).join('');
   const hasPlanilhaId = !!String(c.id || editingId || '').startsWith('planilha-');
@@ -885,7 +908,6 @@ function renderClienteModal(box){
     <div class="tabs">
       <div class="tab active" onclick="switchTab(this,'tab-dados')">Dados Pessoais</div>
       <div class="tab" onclick="switchTab(this,'tab-cert')">Certificado & Pagamento</div>
-      <div class="tab" onclick="switchTab(this,'tab-triagem')">Triagem</div>
       ${hasPlanilhaId?`<div class="tab" onclick="switchTab(this,'tab-documentos')">Documentos</div>`:''}
       <div class="tab" onclick="switchTab(this,'tab-soluti')">Kit Soluti</div>
     </div>
@@ -912,11 +934,6 @@ function renderClienteModal(box){
         <div class="field"><label>Pagamento Confirmado?</label><select id="f-pago"><option value="false"${!c.pago?' selected':''}>Não confirmado</option><option value="true"${c.pago?' selected':''}>✓ Pago / Confirmado</option></select></div>
         <div class="field"><label>Tipo de Validação</label><select id="f-valid"><option${c.tipoValidacao==='Videoconferência'?' selected':''}>Videoconferência</option><option${c.tipoValidacao==='Presencial'?' selected':''}>Presencial</option></select></div>
         <div class="field"><label>Data da Videoconferência</label><input id="f-videodata" type="datetime-local" value="${c.dataVideo||''}"></div>
-      </div>
-    </div>
-    <div id="tab-triagem" class="tab-pane" style="display:none">
-      <div class="form-grid">
-        ${renderTriagemFields(c)}
       </div>
     </div>
     ${hasPlanilhaId?`
@@ -955,19 +972,6 @@ function renderClienteModal(box){
   // Auto-fill vencimento ao escolher emissao
   document.getElementById('f-emissao').addEventListener('change',function(){
     if(this.value){document.getElementById('f-venc').value=addDays(this.value,365)}
-  });
-  document.querySelectorAll('#tab-triagem select').forEach(function(select){
-    select.addEventListener('change', function(){
-      const resumo = document.getElementById('triagem-resumo');
-      if(resumo){
-        const preview = {
-          temCnh: Number(document.getElementById('triagem-temCnh')?.value ?? 0),
-          jaTeveCertificado: Number(document.getElementById('triagem-jaTeveCertificado')?.value ?? 0),
-          temBiometria: Number(document.getElementById('triagem-temBiometria')?.value ?? 0),
-        };
-        resumo.value = getTriagemSummary(preview);
-      }
-    });
   });
   if(hasPlanilhaId){
     loadDocumentosCliente(c.id || editingId);
@@ -1062,11 +1066,12 @@ function switchTab(el,tabId){
   document.querySelectorAll('.tab-pane').forEach(p=>p.style.display='none');
   document.getElementById(tabId).style.display='';
 }
+// Adicione isto no cert_manager.js caso as funções não existam mais
 
 function saveCliente(){
   const nome=document.getElementById('f-nome').value.trim();
   if(!nome){alert('Nome obrigatório');return}
-  const c=editingId?clientes.find(x=>x.id===editingId):{id:uid(),criadoEm:new Date().toISOString().split('T')[0],historico:[]};
+  const c=resolveClienteById(editingId) || {id:(editingId || uid()),criadoEm:new Date().toISOString().split('T')[0],historico:[],notificacoes:[]};
   c.nome=nome;
   c.cpfCnpj=document.getElementById('f-cpfcnpj').value;
   c.dataNasc=document.getElementById('f-nasc').value;
@@ -1196,14 +1201,311 @@ function saveContato(cid){
   save();closeModal(true);renderClientes();renderRenovacoes();renderKanban();
 }
 
+function renderPagamentoModal(box, cid) {
+  let c = resolveClienteById(cid || editingId);
+  if (!c) {
+      const alertData = getAlertData();
+      const allAlerts = [...alertData.renovacoes.urgentes, ...alertData.renovacoes.normais, ...alertData.pagamentos.urgentes, ...alertData.pagamentos.normais];
+      const alertItem = allAlerts.find(x => String(x.id) === String(cid));
+      if (alertItem) {
+          c = { 
+              id: cid, 
+              nome: alertItem.nome, 
+              tipoCert: alertItem.tipoCert, 
+              valorCobrado: alertItem.valorCobrado || 0,
+              dataVencimento: alertItem.dataVencimento || '',
+              pago: alertItem.pago || false,
+              formaPag: 'Pix',
+              historico: [],
+              notificacoes: []
+          };
+      } else {
+          box.innerHTML = `<div class="modal-head"><h2>Pagamento</h2><button class="btn btn-sm" onclick="closeModal(true)"><i class="ti ti-x"></i></button></div><div class="modal-body"><p style="font-size:13px;color:var(--muted)">Selecione um cliente válido antes de registrar um pagamento.</p></div>`;
+          return;
+      }
+  }
+
+  const histHTML = (c.historico || []).slice().reverse().map(h => `
+    <div style="padding: 14px; border-bottom: 1px solid var(--border); font-size: 13px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <strong><i class="ti ti-calendar"></i> ${fmtDate(h.data)} — ${h.canal || 'Pagamento'}</strong>
+            <span class="badge ${c.pago ? 'badge-emitido' : 'badge-pag'}">${h.obs ? h.obs.split('·')[0] : 'Atualizado'}</span>
+        </div>
+        <div style="background: var(--bg); padding: 10px; border-radius: 6px;">${h.obs || 'Nenhuma observação informada.'}</div>
+    </div>`).join('') || '<div class="empty-state"><i class="ti ti-receipt-off"></i><p>Nenhum histórico de pagamento registrado.</p></div>';
+
+  box.innerHTML = `
+  <div class="modal-head">
+    <h2><i class="ti ti-cash"></i> Gestão de Pagamento — ${c.nome || 'Cliente'}</h2>
+    <button class="btn btn-sm" onclick="closeModal(true)"><i class="ti ti-x"></i></button>
+  </div>
+  <div class="modal-body" style="padding: 0;">
+    
+    <!-- Abas -->
+    <div class="tabs" style="padding: 14px 20px 0 20px; background: #fafaf8; border-bottom: 1px solid var(--border); margin-bottom:0;">
+      <div class="tab active" onclick="switchTab(this,'tab-reg-pagamento')">Registrar Pagamento</div>
+      <div class="tab" onclick="switchTab(this,'tab-hist-pagamento')">Visualizar Histórico</div>
+    </div>
+
+    <!-- Aba de Formulário -->
+    <div id="tab-reg-pagamento" class="tab-pane" style="padding: 20px;">
+        <div style="background: var(--bg); padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; display:flex; justify-content:space-between; align-items:center;">
+            <div><strong>Cliente:</strong> <br><span style="color:var(--accent)">${c.nome || '—'}</span></div>
+            <div><strong>Status Atual:</strong> <br><span style="color:${c.pago ? 'var(--success)' : 'var(--danger)'}">${c.pago ? '✓ Confirmado' : '⚠ Pendente'}</span></div>
+        </div>
+
+        <div class="form-grid">
+          <div class="field"><label>Valor (R$)</label><input id="pg-valor" type="number" step="0.01" value="${c.valorCobrado || ''}" placeholder="0,00"></div>
+          <div class="field"><label>Status do Pagamento</label><select id="pg-status"><option value="Pendente"${!c.pago?' selected':''}>Pendente</option><option value="Pago"${c.pago?' selected':''}>Pago / Confirmado</option></select></div>
+          <div class="field"><label>Forma de Pagamento</label><select id="pg-forma"><option${(c.formaPag||'Pix')==='Pix'?' selected':''}>Pix</option><option${(c.formaPag||'Boleto')==='Boleto'?' selected':''}>Boleto</option><option${(c.formaPag||'Cartão')==='Cartão'?' selected':''}>Cartão</option><option${(c.formaPag||'Dinheiro')==='Dinheiro'?' selected':''}>Dinheiro</option></select></div>
+          <div class="field"><label>Data da Transação</label><input id="pg-data" type="date" value="${c.dataPagamento || new Date().toISOString().split('T')[0]}"></div>
+          
+          <div class="field form-full"><label>Observação / Detalhes</label><textarea id="pg-obs" placeholder="Ex: Pagamento confirmado via PIX no valor integral.">${c.obs || ''}</textarea></div>
+          
+          <div class="field form-full" style="background: var(--bg); padding: 12px; border-radius: 8px;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input id="pg-notificar" type="checkbox" checked> Enviar notificação de pagamento ao cliente</label>
+            <div style="margin-top: 8px;"><input id="pg-notificacao" class="field" style="width:100%" placeholder="Mensagem: Seu pagamento foi confirmado, obrigado." value="Pagamento registrado com sucesso."></div>
+          </div>
+        </div>
+    </div>
+
+    <!-- Aba de Histórico -->
+    <div id="tab-hist-pagamento" class="tab-pane" style="display: none; max-height: 450px; overflow-y: auto;">
+        ${histHTML}
+    </div>
+  </div>
+  
+  <div class="modal-foot">
+    <button class="btn" onclick="closeModal(true)">Cancelar</button>
+    <button class="btn btn-primary" onclick="savePagamento('${c.id}')"><i class="ti ti-device-floppy"></i> Salvar Pagamento</button>
+  </div>`;
+}
+
+function savePagamento(cid){
+  let c = resolveClienteById(cid || editingId);
+  let isNewToLocal = false;
+
+  if(!c) {
+      const alertData = getAlertData();
+      const allAlerts = [...alertData.renovacoes.urgentes, ...alertData.renovacoes.normais, ...alertData.pagamentos.urgentes, ...alertData.pagamentos.normais];
+      const alertItem = allAlerts.find(x => String(x.id) === String(cid));
+      
+      if (alertItem) {
+          c = { 
+              id: cid, 
+              nome: alertItem.nome, 
+              tipoCert: alertItem.tipoCert, 
+              criadoEm: new Date().toISOString().split('T')[0], 
+              status: 'Aguardando Pagamento', 
+              historico: [],
+              notificacoes: []
+          };
+          isNewToLocal = true;
+      } else {
+          showToast('Erro ao salvar pagamento: Cliente não encontrado.', 'error');
+          return;
+      }
+  }
+
+  const valor = parseFloat(document.getElementById('pg-valor').value) || 0;
+  const status = document.getElementById('pg-status').value;
+  const forma = document.getElementById('pg-forma').value;
+  const data = document.getElementById('pg-data').value || new Date().toISOString().split('T')[0];
+  const obs = document.getElementById('pg-obs').value.trim();
+
+  c.valorCobrado = valor;
+  c.formaPag = forma;
+  c.pago = (status === 'Pago');
+  c.dataPagamento = data;
+  if(obs){ c.obs = [c.obs, obs].filter(Boolean).join('\n'); }
+
+  if(c.pago && c.status === 'Aguardando Pagamento'){
+      c.status = 'Emitido';
+  }
+
+  if(!c.historico) c.historico = [];
+  c.historico.push({
+      data, 
+      canal: 'Pagamento', 
+      obs: `${status} · ${forma}${valor ? ` · ${fmtMoney(valor)}` : ''}${obs ? ` - ${obs}` : ''}`, 
+      dt: new Date().toISOString()
+  });
+
+  const notify = document.getElementById('pg-notificar')?.checked;
+  if(notify){
+    if(!Array.isArray(c.notificacoes)) c.notificacoes = [];
+    c.notificacoes.unshift({
+      id: uid(),
+      data,
+      tipo: 'pagamento',
+      titulo: 'Pagamento registrado',
+      texto: document.getElementById('pg-notificacao').value.trim() || `Pagamento ${status.toLowerCase()} para ${c.nome || 'o cliente'}.`,
+      status: c.pago ? 'enviado' : 'pendente',
+      origem: 'pagamento',
+    });
+  }
+
+  if(isNewToLocal){
+      clientes.unshift(c);
+  }
+
+  save();
+  closeModal(true);
+  
+  renderClientes();
+  renderDashboard();
+  renderKanban();
+  renderRenovacoes();
+  renderInadimplencia();
+  
+  showToast('Pagamento salvo com sucesso!', 'success');
+}
+// ==================== NOVO MODAL DE CRM (CONTATOS) ====================
+function renderContatoModal(box, cid) {
+  // 1. Busca o cliente localmente, ou extrai os dados do card de alerta (se vier da planilha)
+  let c = clientes.find(x => String(x.id) === String(cid));
+  if (!c) {
+      const alertData = getAlertData();
+      const allAlerts = [...alertData.renovacoes.urgentes, ...alertData.renovacoes.normais, ...alertData.pagamentos.urgentes, ...alertData.pagamentos.normais];
+      const alertItem = allAlerts.find(x => String(x.id) === String(cid));
+      if (alertItem) {
+          c = { id: cid, nome: alertItem.nome, tipoCert: alertItem.tipoCert, historico: [] };
+      } else {
+          showToast('Erro: Cliente não encontrado.', 'error');
+          return;
+      }
+  }
+
+  // 2. Monta a lista visual de contatos anteriores
+  const histHTML = (c.historico || []).slice().reverse().map(h => `
+    <div style="padding: 14px; border-bottom: 1px solid var(--border); font-size: 13px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <strong><i class="ti ti-calendar"></i> ${fmtDate(h.data)} — ${h.canal}</strong>
+            <span class="badge badge-novo">${h.resultado || 'Contato Feito'}</span>
+        </div>
+        <div style="color: var(--muted); margin-bottom: 6px;">
+            <strong>Agendado para:</strong> ${h.agendamento ? new Date(h.agendamento).toLocaleString('pt-BR') : 'Não agendado'} 
+            ${h.produto ? `| <strong>Produto Ofertado:</strong> ${h.produto}` : ''}
+        </div>
+        <div style="background: var(--bg); padding: 10px; border-radius: 6px;">${h.obs || 'Nenhuma observação detalhada.'}</div>
+    </div>`).join('') || '<div class="empty-state"><i class="ti ti-message-off"></i><p>Nenhum histórico de contato registrado.</p></div>';
+
+  // 3. Renderiza a estrutura do Modal com Abas
+  box.innerHTML = `
+  <div class="modal-head">
+    <h2><i class="ti ti-headset"></i> Gestão de Contato — ${c.nome}</h2>
+    <button class="btn btn-sm" onclick="closeModal(true)"><i class="ti ti-x"></i></button>
+  </div>
+  <div class="modal-body" style="padding: 0;">
+    
+    <!-- Abas -->
+    <div class="tabs" style="padding: 14px 20px 0 20px; background: #fafaf8; border-bottom: 1px solid var(--border); margin-bottom:0;">
+      <div class="tab active" onclick="switchTab(this,'tab-reg-contato')">Registrar Contato</div>
+      <div class="tab" onclick="switchTab(this,'tab-hist-contato')">Visualizar Histórico</div>
+    </div>
+    
+    <!-- Aba de Formulário -->
+    <div id="tab-reg-contato" class="tab-pane" style="padding: 20px;">
+        <div style="background: var(--bg); padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; display:flex; gap:20px;">
+            <div><strong>Cliente:</strong> <br><span style="color:var(--accent)">${c.nome}</span></div>
+            <div><strong>Produto Atual:</strong> <br><span style="color:var(--accent)">${c.tipoCert || 'Não identificado'}</span></div>
+        </div>
+        
+        <div class="form-grid cols3">
+          <div class="field"><label>Data do Contato</label><input id="ct-data" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+          <div class="field"><label>Canal</label><select id="ct-canal"><option>WhatsApp</option><option>Ligação</option><option>E-mail</option><option>Presencial</option></select></div>
+          <div class="field"><label>Resultado da Conversa</label><select id="ct-resultado"><option>Em Negociação</option><option>Agendado para Renovação</option><option>Sem Interesse</option><option>Caixa Postal / Não Atende</option><option>Pagamento Confirmado</option></select></div>
+          
+          <div class="field"><label>Produto Ofertado</label><select id="ct-produto"><option value="">Manter atual</option>${precos.map(p=>`<option>${p.tipo}</option>`).join('')}</select></div>
+          <div class="field"><label>Agendar Retorno Para</label><input id="ct-agendamento" type="datetime-local"></div>
+          <div class="field"><label>Alterar Status no Funil</label><select id="ct-status">${STATUS_LIST.map(s=>`<option${c.status===s?' selected':''}>${s}</option>`).join('')}</select></div>
+          
+          <div class="field form-full">
+            <label>Observação (Até 600 caracteres recomendados)</label>
+            <textarea id="ct-obs" placeholder="Descreva como foi o atendimento..." style="min-height: 100px; resize: vertical;"></textarea>
+          </div>
+        </div>
+    </div>
+
+    <!-- Aba de Histórico -->
+    <div id="tab-hist-contato" class="tab-pane" style="display: none; max-height: 450px; overflow-y: auto;">
+        ${histHTML}
+    </div>
+  </div>
+  
+  <div class="modal-foot">
+    <button class="btn" onclick="closeModal(true)">Cancelar</button>
+    <button class="btn btn-primary" onclick="saveContato('${c.id}')"><i class="ti ti-device-floppy"></i> Salvar Registro</button>
+  </div>`;
+}
+
+function saveContato(cid) {
+  let c = clientes.find(x => String(x.id) === String(cid));
+  let isNewToLocal = false;
+
+  // Se o cliente só existe na planilha/backend, cria uma base local para ele receber o histórico
+  if (!c) {
+      const alertData = getAlertData();
+      const allAlerts = [...alertData.renovacoes.urgentes, ...alertData.renovacoes.normais, ...alertData.pagamentos.urgentes, ...alertData.pagamentos.normais];
+      const alertItem = allAlerts.find(x => String(x.id) === String(cid));
+      
+      if (alertItem) {
+          c = { 
+              id: cid, 
+              nome: alertItem.nome, 
+              tipoCert: alertItem.tipoCert, 
+              criadoEm: new Date().toISOString().split('T')[0], 
+              status: 'Novo Lead', 
+              historico: [] 
+          };
+          isNewToLocal = true;
+      } else {
+          showToast('Erro ao salvar: Cliente não encontrado.', 'error');
+          return;
+      }
+  }
+
+  if (!c.historico) c.historico = [];
+  
+  // Salva os dados enriquecidos do novo formulário
+  c.historico.push({
+      data: document.getElementById('ct-data').value,
+      canal: document.getElementById('ct-canal').value,
+      resultado: document.getElementById('ct-resultado').value,
+      produto: document.getElementById('ct-produto').value,
+      agendamento: document.getElementById('ct-agendamento').value,
+      obs: document.getElementById('ct-obs').value,
+      dt: new Date().toISOString()
+  });
+
+  // Atualiza o status do Kanban de acordo com a seleção
+  c.status = document.getElementById('ct-status').value;
+  
+  if (isNewToLocal) {
+      clientes.unshift(c);
+  }
+
+  save();
+  closeModal(true);
+  
+  // Recarrega as telas para refletir a mudança de status
+  renderClientes();
+  renderRenovacoes();
+  renderInadimplencia();
+  renderKanban();
+  
+  showToast('Contato registrado com sucesso!', 'success');
+}
+
 // ==================== DETAIL ====================
 function openDetail(id){
-  const c=clientes.find(x=>x.id===id);
+  const c=resolveClienteById(id);
   if(!c)return;
   const parc=parceiros.find(p=>p.id===c.parceiroId);
   const si=STATUS_LIST.indexOf(c.status);
   const steps=STATUS_LIST.map((s,i)=>`<div class="step${i<si?' done':i===si?' current':''}">${s}</div>`).join('');
   const hist=(c.historico||[]).slice().reverse().map(h=>`<div class="contact-entry"><span class="dt">${fmtDate(h.data)}<br><small>${h.canal}</small></span><span>${h.obs||'—'}</span></div>`).join('')||'<p style="font-size:12px;color:var(--muted)">Nenhum contato registrado</p>';
+  const notificacoes=(c.notificacoes||[]).slice().reverse().map(n=>`<div class="contact-entry"><span class="dt">${fmtDate(n.data)}<br><small>${n.titulo||'Notificação'}</small></span><span>${n.texto||'—'}</span></div>`).join('')||'<p style="font-size:12px;color:var(--muted)">Nenhuma notificação registrada</p>';
   const kit=c.solutiLink||c.solutiChave?`<div class="kit-box"><div class="kit-label"><i class="ti ti-key"></i> Kit de Instalação Soluti</div><div class="kit-row"><strong>Link:</strong> <a href="${c.solutiLink}" style="color:var(--accent)" target="_blank">${c.solutiLink}</a></div><div class="kit-row"><strong>Chave:</strong> <code>${c.solutiChave}</code></div><div class="kit-row"><strong>Destinatário:</strong> ${c.kitDestinatario||'—'} <span style="color:${c.kitEnviado?'var(--success)':'var(--danger)'}">${c.kitEnviado?'✓ Enviado':'Não enviado'}</span></div></div>`:'<p style="font-size:12px;color:var(--muted)">Kit Soluti ainda não registrado</p>';
   document.getElementById('detail-box').innerHTML=`
   <div class="modal-head">
@@ -1254,6 +1556,10 @@ function openDetail(id){
           <h4>Histórico de Contatos</h4>
           <button class="btn btn-sm" style="margin-bottom:8px" onclick="openModal('contato','${c.id}');closeDetail(true)"><i class="ti ti-plus"></i> Registrar Contato</button>
           <div class="contact-log">${hist}</div>
+        </div>
+        <div class="detail-section">
+          <h4>Notificações</h4>
+          <div class="contact-log">${notificacoes}</div>
         </div>
         ${c.obs?`<div class="detail-section"><h4>Observações</h4><p style="font-size:13px;color:var(--muted)">${c.obs}</p></div>`:''}
       </div>
