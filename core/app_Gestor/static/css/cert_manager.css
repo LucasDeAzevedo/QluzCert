@@ -63,6 +63,7 @@
   
   /* TABLES */
   .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .table-wrap+.table-wrap{margin-top:16px}
   .table-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
   .table-header h3{font-size:14px;font-weight:600}
   table{width:100%;border-collapse:collapse}
