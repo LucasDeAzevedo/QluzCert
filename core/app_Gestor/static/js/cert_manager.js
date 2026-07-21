@@ -553,6 +553,34 @@ function renderTriagem(){
 }
 function triagemAnswer(q,ans){triagemData[q]=ans;triagemStep++;renderTriagem()}
 
+const TRIAGEM_QUESTIONS = [
+  { key:'temCnh', label:'O cliente possui CNH (Carteira Nacional de Habilitação)?', options:['Sim, possui CNH','Não possui CNH'] },
+  { key:'jaTeveCertificado', label:'O cliente já teve certificado digital anteriormente?', options:['Sim, já teve certificado','Não, é a primeira vez'] },
+  { key:'temBiometria', label:'Verificar no Portal Soluti: existe biometria cadastrada para este cliente?', options:['Sim, biometria encontrada','Não encontrada'] },
+];
+function getTriagemSummary(triagem){
+  if(!triagem || typeof triagem !== 'object') return 'Triagem não registrada';
+  const cnh = triagem.temCnh;
+  const anterior = triagem.jaTeveCertificado;
+  const biometria = triagem.temBiometria;
+  if(cnh === 0) return 'Videoconferência - cliente possui CNH';
+  if(cnh === 1 && anterior === 1) return 'Presencial obrigatória - sem CNH e sem certificado anterior';
+  if(cnh === 1 && anterior === 0 && biometria === 0) return 'Videoconferência - biometria encontrada';
+  if(cnh === 1 && anterior === 0 && biometria === 1) return 'Presencial obrigatória - sem biometria cadastrada';
+  return 'Triagem em andamento';
+}
+function renderTriagemFields(client){
+  const triagem = client.triagem || {};
+  return `
+    <div class="field form-full"><label>Triagem de Validação</label><div style="font-size:12px;color:var(--muted);margin-top:4px">Registre aqui as características do cliente que determinam a validação.</div></div>
+    ${TRIAGEM_QUESTIONS.map((item)=>{
+      const current = triagem[item.key];
+      return `<div class="field form-full"><label>${item.label}</label><select id="triagem-${item.key}">${item.options.map((opt, optIndex)=>`<option value="${optIndex}"${current===optIndex?' selected':''}>${opt}</option>`).join('')}</select></div>`;
+    }).join('')}
+    <div class="field form-full"><label>Resumo da triagem</label><input id="triagem-resumo" value="${getTriagemSummary(triagem)}" readonly></div>
+  `;
+}
+
 function getPlanilhaPkFromClientId(clientId){
   if(!clientId || !String(clientId).startsWith('planilha-')) return null;
   const raw = String(clientId).split('-', 2)[1];
@@ -717,6 +745,7 @@ function openModal(type, extraId){
   const box=document.getElementById('modal-box');
   overlay.classList.add('open');
   if(type==='cliente')renderClienteModal(box);
+  if(type==='novoCliente')renderNovoClienteModal(box);
   if(type==='parceiro')renderParceiroModal(box);
   if(type==='preco')renderPrecoModal(box);
   if(type==='contato')renderContatoModal(box,extraId||editingId);
@@ -833,6 +862,88 @@ function renderClienteModal(box){
   }
 }
 
+// ==================== NOVO CLIENTE (Planilha real) ====================
+function renderNovoClienteModal(box){
+  box.innerHTML=`
+  <div class="modal-head">
+    <div>
+      <h2>Novo Cliente</h2>
+      <div style="font-size:12px;color:var(--muted);margin-top:3px">Grava direto na planilha do Google Drive, junto com os demais registros</div>
+    </div>
+    <button class="btn btn-sm" onclick="closeModal(true)"><i class="ti ti-x"></i></button>
+  </div>
+  <div class="modal-body">
+    <div class="form-grid">
+      <div class="field form-full"><label>Nome do Cliente *</label><input id="ng-nome" placeholder="Nome completo"></div>
+      <div class="field"><label>CPF / CNPJ</label><input id="ng-cpfcnpj" placeholder="000.000.000-00"></div>
+      <div class="field"><label>E-mail</label><input id="ng-email" type="email" placeholder="email@exemplo.com"></div>
+      <div class="field"><label>Telefone</label><input id="ng-tel1" placeholder="(00) 00000-0000"></div>
+      <div class="field"><label>Telefone 2</label><input id="ng-tel2" placeholder="(00) 00000-0000"></div>
+      <div class="field"><label>Contador/Parceiro</label><input id="ng-parceiro"></div>
+      <div class="field"><label>Contador/Contabilidade</label><input id="ng-contabilidade"></div>
+      <div class="field"><label>Tipo de Certificado</label><input id="ng-tipo" placeholder="Ex: e-CPF A1"></div>
+      <div class="field"><label>Data da Venda</label><input id="ng-datavenda" type="date"></div>
+      <div class="field"><label>Data de Vencimento</label><input id="ng-datavenc" type="date"></div>
+      <div class="field"><label>Valor da Venda (R$)</label><input id="ng-valorvenda" type="number" step="0.01" placeholder="0,00"></div>
+      <div class="field"><label>Percentual de Comissão (%)</label><input id="ng-percentual" type="number" step="0.01" placeholder="0,00"></div>
+      <div class="field"><label>Valor da Comissão (R$)</label><input id="ng-valorcomissao" type="number" step="0.01" placeholder="0,00"></div>
+      <div class="field"><label>Forma de Pagamento</label><input id="ng-formapag" placeholder="Pix, Boleto, Cartão..."></div>
+      <div class="field"><label>Banco</label><input id="ng-banco"></div>
+      <div class="field"><label>Chave PIX</label><input id="ng-pix"></div>
+      <div class="field"><label>Pago (Venda)</label><select id="ng-pagovenda"><option value="Não" selected>Não</option><option value="Sim">Sim</option></select></div>
+      <div class="field"><label>Pago (Comissão)</label><select id="ng-pagocomissao"><option value="Não" selected>Não</option><option value="Sim">Sim</option></select></div>
+    </div>
+  </div>
+  <div class="modal-foot">
+    <button class="btn" onclick="closeModal(true)">Cancelar</button>
+    <button class="btn btn-primary" id="ng-save-btn" onclick="saveNovoCliente()"><i class="ti ti-device-floppy"></i> Salvar Cliente</button>
+  </div>`;
+}
+
+async function saveNovoCliente(){
+  const nome=document.getElementById('ng-nome').value.trim();
+  if(!nome){alert('Nome obrigatório');return}
+  const btn=document.getElementById('ng-save-btn');
+  const payload=new URLSearchParams({
+    cliente:nome,
+    cpf_cnpj:document.getElementById('ng-cpfcnpj').value,
+    email:document.getElementById('ng-email').value,
+    telefone1:document.getElementById('ng-tel1').value,
+    telefone2:document.getElementById('ng-tel2').value,
+    contador_parceiro:document.getElementById('ng-parceiro').value,
+    contador_contabilidade:document.getElementById('ng-contabilidade').value,
+    tipo_certificado:document.getElementById('ng-tipo').value,
+    data_venda:document.getElementById('ng-datavenda').value,
+    data_vencimento:document.getElementById('ng-datavenc').value,
+    valor_venda:document.getElementById('ng-valorvenda').value,
+    percentual_comissao:document.getElementById('ng-percentual').value,
+    valor_comissao:document.getElementById('ng-valorcomissao').value,
+    forma_pagamento:document.getElementById('ng-formapag').value,
+    banco:document.getElementById('ng-banco').value,
+    chave_pix:document.getElementById('ng-pix').value,
+    pago_venda:document.getElementById('ng-pagovenda').value,
+    pago_comissao:document.getElementById('ng-pagocomissao').value,
+  });
+  if(btn)btn.disabled=true;
+  try{
+    const response=await fetch('/planilha/criar/',{
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRFToken':getCsrfToken(),'X-Requested-With':'XMLHttpRequest'},
+      body:payload.toString(),
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'Falha ao criar cliente');
+    showToast(data.drive_updated?'Cliente criado e planilha do Drive atualizada':'Cliente criado localmente (falha ao atualizar Drive)', data.drive_updated?'success':'info');
+    closeModal(true);
+    location.reload();
+  }catch(err){
+    console.error(err);
+    showToast(err.message||'Erro ao criar cliente','error');
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
+
 function switchTab(el,tabId){
   el.closest('.tabs').querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
@@ -865,6 +976,12 @@ function saveCliente(){
   c.solutiChave=document.getElementById('f-chave').value;
   c.kitDestinatario=document.getElementById('f-dest').value;
   c.kitEnviado=document.getElementById('f-kitenviado').value==='true';
+  c.triagem={
+    temCnh:Number(document.getElementById('triagem-temCnh')?.value ?? 0),
+    jaTeveCertificado:Number(document.getElementById('triagem-jaTeveCertificado')?.value ?? 0),
+    temBiometria:Number(document.getElementById('triagem-temBiometria')?.value ?? 0),
+  };
+  c.triagem.resumo=getTriagemSummary(c.triagem);
   if(!editingId)clientes.unshift(c);
   save();closeModal(true);renderClientes();renderDashboard();renderKanban();
   editingId=null;
