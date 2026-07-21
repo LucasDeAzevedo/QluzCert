@@ -74,9 +74,23 @@
   tbody tr:last-child{border-bottom:none}
   tbody tr:hover{background:#fafaf8}
   tbody td{padding:10px 16px;font-size:13px;vertical-align:middle}
-  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .table-scroll{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin;
+    scrollbar-color:var(--border) transparent;
+    background-color:var(--surface);
+    background-repeat:no-repeat;
+    background-size:24px 100%,12px 100%;
+    background-position:0 0,0 0;
+    background-attachment:local,scroll;
+  }
+  .table-scroll::-webkit-scrollbar{height:12px}
+  .table-scroll::-webkit-scrollbar-track{background:transparent}
+  .table-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+  .table-scroll::-webkit-scrollbar-thumb:hover{background:#ccc}
   .table-scroll table th,.table-scroll table td{white-space:nowrap}
-  .google-drive-table th:last-child,.google-drive-table td:last-child{position:sticky;right:0;background:var(--surface);box-shadow:-1px 0 0 var(--border);z-index:1}
+  .google-drive-table th:last-child,.google-drive-table td:last-child{position:sticky;right:0;background:var(--surface);box-shadow:-1px 0 0 var(--border),-8px 0 12px -8px rgba(0,0,0,.18);z-index:1}
   .google-drive-table thead th:last-child{background:var(--bg);z-index:2}
   .google-drive-table tbody tr:hover td:last-child{background:#fafaf8}
   .google-drive-table tbody tr:last-child td:last-child{border-bottom-right-radius:10px}
