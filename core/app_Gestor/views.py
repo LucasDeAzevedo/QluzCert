@@ -289,7 +289,8 @@ class DashboardView(TemplateView):
 
         # --- CORREÇÃO PRECISA: Soma o faturamento diretamente do banco onde pago_venda é True ---
         from django.db.models import Sum
-        faturamento_db = PlanilhaRegistro.objects.filter(pago_venda=True).aggregate(total=Sum('valor_venda'))['total'] or 0.0
+
+        faturamento_db = ( PagamentoCliente.objects.filter(status=PagamentoCliente.STATUS_APPROVED).aggregate(total=Sum("valor"))["total"] or 0)
         faturamento_total = float(faturamento_db)
 
         import json

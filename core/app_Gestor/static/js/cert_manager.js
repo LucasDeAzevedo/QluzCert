@@ -267,8 +267,50 @@ function buildLocalAlertData(){
   return {counts, renovacoes, pagamentos};
 }
 
-function getAlertData(){
-  return normalizeAlertData(backendAlertData || buildLocalAlertData());
+function getAlertData() {
+  // 1. Obtém os dados de alerta vindos do backend ou gerados localmente
+  let baseData = normalizeAlertData(backendAlertData || buildLocalAlertData());
+
+  // 2. Filtro Inteligente para Pagamentos
+  const filterPagamentos = (alertArray) => alertArray.filter(alerta => {
+      const clienteLocal = clientes.find(c => String(c.id) === String(alerta.id));
+      if (clienteLocal) {
+          // Se o cliente foi marcado como pago localmente na interface, esconde o alerta
+          return !clienteLocal.pago; 
+      }
+      return true; // Se o cliente não constar localmente, mantém a informação original
+  });
+
+  // 3. Filtro Inteligente para Renovações (Vencimentos)
+  const filterRenovacoes = (alertArray) => alertArray.filter(alerta => {
+      const clienteLocal = clientes.find(c => String(c.id) === String(alerta.id));
+      if (clienteLocal) {
+          // Se o status local for alterado para "Emitido" (problema resolvido), esconde o alerta
+          return clienteLocal.status !== 'Emitido';
+      }
+      return true;
+  });
+
+  // 4. Aplica a limpeza nas listas em tempo real
+  baseData.pagamentos.urgentes = filterPagamentos(baseData.pagamentos.urgentes);
+  baseData.pagamentos.normais = filterPagamentos(baseData.pagamentos.normais);
+  
+  baseData.renovacoes.urgentes = filterRenovacoes(baseData.renovacoes.urgentes);
+  baseData.renovacoes.normais = filterRenovacoes(baseData.renovacoes.normais);
+
+  // 5. Recalcula os números dos crachás (badges) no menu lateral
+  baseData.counts.pagamentos_urgentes = baseData.pagamentos.urgentes.length;
+  baseData.counts.pagamentos_normais = baseData.pagamentos.normais.length;
+  baseData.counts.renovacoes_urgentes = baseData.renovacoes.urgentes.length;
+  baseData.counts.renovacoes_normais = baseData.renovacoes.normais.length;
+  
+  baseData.counts.alertas_totais = 
+      baseData.counts.pagamentos_urgentes + 
+      baseData.counts.pagamentos_normais + 
+      baseData.counts.renovacoes_urgentes + 
+      baseData.counts.renovacoes_normais;
+
+  return baseData;
 }
 
 function getCurrentViewId(){
