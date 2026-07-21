@@ -181,6 +181,19 @@ function hideExportOverlay(){
 }
 
 function renderTo(id, html){const el=document.getElementById(id); if(el) el.innerHTML=html}
+function debounce(fn, delay=200){
+  let t;
+  return function(...args){
+    clearTimeout(t);
+    t=setTimeout(()=>fn.apply(this,args), delay);
+  };
+}
+function normalizeQuery(v){return (v||'').trim().toLowerCase()}
+function updateResultCount(elId, shown, total){
+  const el=document.getElementById(elId);
+  if(!el) return;
+  el.textContent = total===0 ? '' : (shown===total ? `${total} resultado${total===1?'':'s'}` : `${shown} de ${total} resultado${total===1?'':'s'}`);
+}
 function statusIndex(status){return STATUS_LIST.indexOf(status)>=0?STATUS_LIST.indexOf(status):0}
 function statusBadge(status){const i=statusIndex(status); return `<span class="badge ${STATUS_CLASSES[i]}">${status||'Novo Lead'}</span>`}
 function parceiroBadge(id){const p=parceiros.find(x=>x.id===id); return p?`<span class="parceiro-tag">${p.nome}</span>`:'—'}
@@ -476,15 +489,16 @@ function renderDashboard(){
 
 // ==================== CLIENTES ====================
 function renderClientes(){
-  const q=(document.getElementById('search-cliente')?.value||'').toLowerCase();
+  const q=normalizeQuery(document.getElementById('search-cliente')?.value);
   const sf=document.getElementById('filter-status')?.value||'';
   let list=clientes.filter(c=>{
-    const match=!q||(c.nome||'').toLowerCase().includes(q)||(c.cpfCnpj||'').includes(q);
+    const match=!q||[c.nome,c.cpfCnpj,c.email,c.telefone].some(v=>(v||'').toLowerCase().includes(q));
     const sm=!sf||c.status===sf;
     return match&&sm;
   });
   const tbody=document.getElementById('clientes-tbody');
   const empty=document.getElementById('clientes-empty');
+  updateResultCount('clientes-count', list.length, clientes.length);
   if(!list.length){tbody.innerHTML='';empty.style.display='';return}
   empty.style.display='none';
   const rows=list.map(c=>{
@@ -500,6 +514,61 @@ function renderClientes(){
     </tr>`;
   });
   tbody.innerHTML=tableRows(rows);
+}
+
+// Colunas de identificação da tabela "Planilha Importada" são localizadas pelo texto do
+// cabeçalho (não pela classe CSS): a classe de cada coluna é derivada do cabeçalho real da
+// planilha em tempo de sincronização (ver normalize_header em core/app/services.py) e pode
+// variar a cada sync (ex: "CPF/CNPJ" vira col-cpfcnpj, não col-cpf-cnpj).
+const PLANILHA_SEARCH_KEYWORDS = ['cliente','nome','cpf','cnpj','email','e-mail','telefone','celular','whatsapp'];
+let _planilhaSearchColIndexes = null;
+function getPlanilhaSearchColIndexes(){
+  if(_planilhaSearchColIndexes) return _planilhaSearchColIndexes;
+  const ths = Array.from(document.querySelectorAll('#planilha-table thead th'));
+  _planilhaSearchColIndexes = ths.reduce((acc, th, i)=>{
+    const text = th.textContent.toLowerCase();
+    if(PLANILHA_SEARCH_KEYWORDS.some(k=>text.includes(k))) acc.push(i);
+    return acc;
+  }, []);
+  return _planilhaSearchColIndexes;
+}
+
+function filterPlanilhaImportada(){
+  const q=normalizeQuery(document.getElementById('search-cliente')?.value);
+  const tbody=document.getElementById('planilha-tbody');
+  const table=document.getElementById('planilha-table');
+  const noMatch=document.getElementById('planilha-no-match');
+  const msg=document.getElementById('planilha-empty-msg');
+  if(!tbody||!table) return;
+  const dataRows=Array.from(tbody.querySelectorAll('tr'));
+
+  if(!dataRows.length){
+    table.style.display='none';
+    if(noMatch){ noMatch.style.display=''; }
+    if(msg) msg.textContent='Nenhuma planilha importada ainda. Use "Sincronizar com o Google Drive".';
+    updateResultCount('planilha-count', 0, 0);
+    return;
+  }
+
+  const cols=getPlanilhaSearchColIndexes();
+  let visibleCount=0;
+  dataRows.forEach(row=>{
+    const cells=row.querySelectorAll('td');
+    const text=cols.map(i=>cells[i]?.textContent||'').join(' ').toLowerCase();
+    const match=!q||text.includes(q);
+    row.style.display=match?'':'none';
+    if(match) visibleCount++;
+  });
+  updateResultCount('planilha-count', visibleCount, dataRows.length);
+  table.style.display='';
+  if(noMatch){
+    if(q&&!visibleCount){
+      noMatch.style.display='';
+      if(msg) msg.textContent='Nenhum cliente encontrado para essa busca.';
+    } else {
+      noMatch.style.display='none';
+    }
+  }
 }
 
 function editCliente(id){editingId=id;openModal('cliente')}
@@ -1218,6 +1287,7 @@ async function loadAppState(){
   }
   renderDashboard();
   renderClientes();
+  filterPlanilhaImportada();
   renderParceiros();
   renderTabela();
   updateBadges();

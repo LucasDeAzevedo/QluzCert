@@ -180,7 +180,9 @@
   .search-box{display:flex;align-items:center;border:1px solid var(--border);border-radius:7px;background:var(--surface);overflow:hidden;flex:1;max-width:300px}
   .search-box i{padding:0 10px;color:var(--muted);font-size:16px}
   .search-box input{border:none;outline:none;font-size:13px;padding:7px 0;width:100%;background:transparent}
-  
+  .result-count{font-size:12px;color:var(--muted);white-space:nowrap}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
   /* DETAIL PANEL */
   .detail-section{margin-bottom:18px}
   .detail-section h4{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}

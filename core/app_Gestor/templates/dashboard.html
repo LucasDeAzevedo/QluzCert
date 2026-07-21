@@ -85,17 +85,18 @@
       <!-- CLIENTES -->
       <div id="view-clientes" class="view">
         <div class="section-actions">
-          <div class="search-box"><i class="ti ti-search"></i><input type="text" id="search-cliente" placeholder="Buscar por nome, CPF ou CNPJ..." oninput="renderClientes()"></div>
-          <select id="filter-status" onchange="renderClientes()" style="padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:var(--surface)">
-            <option value="">Todos os status</option>
-            <option>Novo Lead</option><option>Documentação Pendente</option><option>Aguardando Pagamento</option><option>Agendado para Vídeo</option><option>Emitido</option>
-          </select>
+          <div class="search-box">
+            <i class="ti ti-search" aria-hidden="true"></i>
+            <label for="search-cliente" class="sr-only">Buscar cliente por nome, CPF, CNPJ, email ou telefone</label>
+            <input type="text" id="search-cliente" placeholder="Buscar por nome, CPF ou CNPJ...">
+          </div>
           <a href="{% url 'sincronizar_drive' %}" class="btn btn-primary"><i class="ti ti-refresh"></i>Sincronizar com Planilha do Drive</a>
           <button class="btn btn-primary" onclick="openModal('novoCliente', null, this)"><i class="ti ti-plus" aria-hidden="true"></i>Novo Cliente</button>
         </div>
         <div class="table-wrap">
           <div class="table-header">
             <h3><i class="ti ti-table"></i>Planilha Importada do Google Drive</h3>
+            <span id="planilha-count" class="result-count" aria-live="polite"></span>
             <div class="column-selector" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px">
               {% for col in google_columns %}
                 <label class="column-toggle-label"><input type="checkbox" class="column-toggle" data-col="{{ col.class }}" checked> {{ col.label }}</label>
@@ -103,35 +104,39 @@
             </div>
           </div>
           <div class="table-scroll">
-            <table class="google-drive-table">
+            <table class="google-drive-table" id="planilha-table"{% if not google_rows %} style="display:none"{% endif %}>
               <thead><tr>
                 {% for col in google_columns %}<th class="{{ col.class }}">{{ col.label }}</th>{% endfor %}
                 <th>Ações</th>
               </tr></thead>
-              <tbody>
-                {% if google_rows %}
-                  {% for row in google_rows %}
-                    <tr>
-                      {% for cell in row.cells %}
-                        <td class="{{ cell.class }}">{{ cell.value }}</td>
-                      {% endfor %}
-                      <td>
+              <tbody id="planilha-tbody">
+                {% for row in google_rows %}
+                  <tr>
+                    {% for cell in row.cells %}
+                      <td class="{{ cell.class }}">{{ cell.value }}</td>
+                    {% endfor %}
+                    <td>
 
-                        <a class="btn btn-sm btn-edit" href="{% url 'editar_google_row' row.id %}"><i class="ti ti-pencil"></i>Editar</a>
-                        {% comment %} Documentos: oculto até a funcionalidade estar pronta {% endcomment %}
-                      </td>
-                    </tr>
-                  {% endfor %}
-                {% else %}
-                    <tr><td colspan="{{ google_columns|length|add:"1" }}" style="text-align:center;color:var(--muted);padding:16px">Nenhuma planilha importada ainda. Use "Sincronizar com o Google Drive".</td></tr>
-                {% endif %}
+                      <a class="btn btn-sm btn-edit" href="{% url 'editar_google_row' row.id %}"><i class="ti ti-pencil"></i>Editar</a>
+                      {% comment %} Documentos: oculto até a funcionalidade estar pronta {% endcomment %}
+                    </td>
+                  </tr>
+                {% endfor %}
               </tbody>
             </table>
           </div>
+          <div id="planilha-no-match" class="empty-state"{% if google_rows %} style="display:none"{% endif %}><i class="ti ti-search-off"></i><p id="planilha-empty-msg">Nenhuma planilha importada ainda. Use "Sincronizar com o Google Drive".</p></div>
         </div>
         <div class="table-wrap">
-          <div class="table-header">
+          <div class="table-header" style="justify-content:space-between;flex-wrap:wrap">
             <h3><i class="ti ti-users"></i>Clientes Cadastrados</h3>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span id="clientes-count" class="result-count" aria-live="polite"></span>
+              <select id="filter-status" style="padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:var(--surface)">
+                <option value="">Todos os status</option>
+                <option>Novo Lead</option><option>Documentação Pendente</option><option>Aguardando Pagamento</option><option>Agendado para Vídeo</option><option>Emitido</option>
+              </select>
+            </div>
           </div>
           <div class="table-scroll">
             <table>
@@ -270,6 +275,12 @@
       });
     });
     showDjangoMessages();
+
+    var searchInput = document.getElementById('search-cliente');
+    var debouncedFilter = debounce(function(){ renderClientes(); filterPlanilhaImportada(); }, 200);
+    if (searchInput) searchInput.addEventListener('input', debouncedFilter);
+    var statusFilter = document.getElementById('filter-status');
+    if (statusFilter) statusFilter.addEventListener('change', renderClientes);
 
     var initialTab = (location.hash || '').replace('#', '');
     if (initialTab && document.getElementById('view-' + initialTab)) {
