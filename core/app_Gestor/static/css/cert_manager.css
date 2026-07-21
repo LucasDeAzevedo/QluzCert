@@ -79,6 +79,7 @@
   .google-drive-table th:last-child,.google-drive-table td:last-child{position:sticky;right:0;background:var(--surface);box-shadow:-1px 0 0 var(--border);z-index:1}
   .google-drive-table thead th:last-child{background:var(--bg);z-index:2}
   .google-drive-table tbody tr:hover td:last-child{background:#fafaf8}
+  .google-drive-table tbody tr:last-child td:last-child{border-bottom-right-radius:10px}
   
   /* BADGES */
   .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600}
@@ -102,8 +103,8 @@
   .btn-edit{color:var(--accent);border-color:var(--accent)}
   .btn-edit:hover{background:var(--accent-light)}
   .btn-success{background:var(--success-bg);color:var(--success);border-color:var(--success)}
-  .table-wrap .btn,.section-actions .btn{position:relative}
-  .table-wrap .btn::after,.section-actions .btn::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:100%;height:100%;min-width:40px;min-height:40px}
+  .table-wrap .btn,.section-actions .btn,.modal-head .btn{position:relative}
+  .table-wrap .btn::after,.section-actions .btn::after,.modal-head .btn::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:100%;height:100%;min-width:40px;min-height:40px}
   
   /* FORMS */
   .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -111,19 +112,22 @@
   .form-full{grid-column:1/-1}
   .field{display:flex;flex-direction:column;gap:4px}
   .field label{font-size:12px;font-weight:600;color:var(--muted)}
-  .field input,.field select,.field textarea{padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;color:var(--text);background:var(--surface);font-family:inherit}
-  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent)}
+  .field input,.field select,.field textarea{padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;color:var(--text);background:var(--surface);font-family:inherit;transition:border-color 150ms ease,box-shadow 150ms ease}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light)}
   .field textarea{resize:vertical;min-height:70px}
+  .modal-fieldset{border:0;padding:0;margin:0;min-width:0}
+  .modal-fieldset+.modal-fieldset{margin-top:22px;padding-top:20px;border-top:1px solid var(--border)}
+  .modal-fieldset legend{padding:0;margin-bottom:12px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
   
   /* MODAL */
-  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity 150ms ease-in,background-color 150ms ease-in,visibility 150ms}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity 150ms ease-out,background-color 150ms ease-out,visibility 150ms}
   .modal-overlay.open{opacity:1;visibility:visible;pointer-events:auto;background:rgba(0,0,0,.4);transition:opacity 200ms ease-out,background-color 200ms ease-out,visibility 200ms}
-  .modal{background:var(--surface);border-radius:12px;width:100%;max-width:680px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);transform:scale(0.95);opacity:0;transition:transform 150ms ease-in,opacity 150ms ease-in}
+  .modal{background:var(--surface);border-radius:12px;width:100%;max-width:680px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.2);transform:scale(0.95);opacity:0;transition:transform 150ms ease-out,opacity 150ms ease-out}
   .modal-overlay.open .modal{transform:scale(1);opacity:1;transition:transform 200ms cubic-bezier(0.23,1,0.32,1),opacity 200ms ease-out}
-  .modal-head{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--surface)}
+  .modal-head{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface)}
   .modal-head h2{font-size:15px;font-weight:700}
-  .modal-body{padding:20px}
-  .modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+  .modal-body{padding:20px;overflow-y:auto;flex:1;min-height:0}
+  .modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0}
   
   /* KANBAN */
   .kanban{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;align-items:start}

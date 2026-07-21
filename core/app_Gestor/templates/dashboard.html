@@ -12,7 +12,8 @@
     <style>
       /* Toast simples */
       .toast-container{position:fixed;right:16px;bottom:16px;z-index:9999;display:flex;flex-direction:column;gap:8px}
-      .toast{min-width:200px;padding:10px 14px;border-radius:8px;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,0.12);font-size:13px}
+      .toast{min-width:200px;padding:10px 14px;border-radius:8px;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,0.12);font-size:13px;opacity:0;transform:translateY(8px);transition:opacity 200ms cubic-bezier(0.23,1,0.32,1),transform 200ms cubic-bezier(0.23,1,0.32,1)}
+      .toast.toast-visible{opacity:1;transform:translateY(0)}
       .toast.success{background:linear-gradient(90deg,#2ecc71,#27ae60)}
       .toast.error{background:linear-gradient(90deg,#e74c3c,#c0392b)}
       .toast.info{background:linear-gradient(90deg,#3498db,#2b86c6)}
@@ -87,7 +88,7 @@
             <option>Novo Lead</option><option>Documentação Pendente</option><option>Aguardando Pagamento</option><option>Agendado para Vídeo</option><option>Emitido</option>
           </select>
           <a href="{% url 'sincronizar_drive' %}" class="btn btn-primary"><i class="ti ti-refresh"></i>Sincronizar com Planilha do Drive</a>
-          <button class="btn btn-primary" onclick="openModal('novoCliente')"><i class="ti ti-plus"></i>Novo Cliente</button>
+          <button class="btn btn-primary" onclick="openModal('novoCliente', null, this)"><i class="ti ti-plus" aria-hidden="true"></i>Novo Cliente</button>
         </div>
         <div class="table-wrap">
           <div class="table-header">
@@ -227,7 +228,7 @@
 
 <!-- MODAIS -->
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
-  <div class="modal" id="modal-box"></div>
+  <div class="modal" id="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-dialog-title"></div>
 </div>
 
 

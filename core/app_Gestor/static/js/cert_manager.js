@@ -91,7 +91,8 @@ function showToast(message, type='info', timeout=3500){
     t.className = 'toast '+(type||'info');
     t.textContent = message;
     container.appendChild(t);
-    setTimeout(()=>{t.style.opacity='0';t.style.transform='translateY(6px)';}, timeout-400);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>t.classList.add('toast-visible')));
+    setTimeout(()=>{t.classList.remove('toast-visible');}, timeout-200);
     setTimeout(()=>{try{container.removeChild(t)}catch(e){}}, timeout);
   }catch(e){console.warn('Toast failed',e)}
 }
@@ -739,8 +740,10 @@ function editPreco(id){editingId=id;openModal('preco')}
 function deletePreco(id){if(confirm('Remover?')){precos=precos.filter(p=>p.id!==id);save();renderTabela()}}
 
 // ==================== MODAIS ====================
-function openModal(type, extraId){
+let modalTriggerEl=null;
+function openModal(type, extraId, triggerEl){
   editingId=editingId||extraId||null;
+  modalTriggerEl=triggerEl||document.activeElement;
   const overlay=document.getElementById('modal-overlay');
   const box=document.getElementById('modal-box');
   overlay.classList.add('open');
@@ -749,8 +752,31 @@ function openModal(type, extraId){
   if(type==='parceiro')renderParceiroModal(box);
   if(type==='preco')renderPrecoModal(box);
   if(type==='contato')renderContatoModal(box,extraId||editingId);
+  const firstField=box.querySelector('input,select,textarea')||box.querySelector('button');
+  if(firstField)firstField.focus();
 }
-function closeModal(e){if(e.target===document.getElementById('modal-overlay')||e===true){document.getElementById('modal-overlay').classList.remove('open');editingId=null}}
+function closeModal(e){
+  if(e.target===document.getElementById('modal-overlay')||e===true){
+    document.getElementById('modal-overlay').classList.remove('open');
+    editingId=null;
+    if(modalTriggerEl&&typeof modalTriggerEl.focus==='function')modalTriggerEl.focus();
+    modalTriggerEl=null;
+  }
+}
+function handleModalKeydown(e){
+  const overlay=document.getElementById('modal-overlay');
+  if(!overlay||!overlay.classList.contains('open'))return;
+  if(e.key==='Escape'){closeModal(true);return}
+  if(e.key==='Tab'){
+    const box=document.getElementById('modal-box');
+    const focusables=Array.prototype.slice.call(box.querySelectorAll('input,select,textarea,button,a[href]')).filter(function(el){return !el.disabled&&el.offsetParent!==null});
+    if(!focusables.length)return;
+    const first=focusables[0],last=focusables[focusables.length-1];
+    if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}
+    else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
+  }
+}
+document.addEventListener('keydown',handleModalKeydown);
 
 function renderClienteModal(box){
   const c=editingId?clientes.find(x=>x.id===editingId):{};
@@ -760,13 +786,13 @@ function renderClienteModal(box){
   box.innerHTML=`
   <div class="modal-head">
     <div>
-      <h2>${editingId?'Editar Cliente':'Novo Cliente'}</h2>
+      <h2 id="modal-dialog-title">${editingId?'Editar Cliente':'Novo Cliente'}</h2>
       <div style="font-size:12px;color:var(--muted);margin-top:3px">Cadastro, triagem, documentos e pagamento no mesmo fluxo</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       ${hasPlanilhaId?`<button class="btn btn-sm" onclick="openDocumentosCliente('${c.id || editingId}')"><i class="ti ti-folder"></i> Documentos</button>`:''}
       ${editingId?`<button class="btn btn-sm" onclick="openModal('pagamento','${c.id || editingId}')"><i class="ti ti-qrcode"></i> Pagamento</button>`:''}
-      <button class="btn btn-sm" onclick="closeModal(true)"><i class="ti ti-x"></i></button>
+      <button class="btn btn-sm" onclick="closeModal(true)" aria-label="Fechar"><i class="ti ti-x" aria-hidden="true"></i></button>
     </div>
   </div>
   <div class="modal-body">
@@ -867,64 +893,65 @@ function renderNovoClienteModal(box){
   box.innerHTML=`
   <div class="modal-head">
     <div>
-      <h2>Novo Cliente</h2>
+      <h2 id="modal-dialog-title">Novo Cliente</h2>
       <div style="font-size:12px;color:var(--muted);margin-top:3px">Grava direto na planilha do Google Drive, junto com os demais registros</div>
     </div>
-    <button class="btn btn-sm" onclick="closeModal(true)"><i class="ti ti-x"></i></button>
+    <button class="btn btn-sm" onclick="closeModal(true)" aria-label="Fechar"><i class="ti ti-x" aria-hidden="true"></i></button>
   </div>
   <div class="modal-body">
-    <div class="form-grid">
-      <div class="field form-full"><label>Nome do Cliente *</label><input id="ng-nome" placeholder="Nome completo"></div>
-      <div class="field"><label>CPF / CNPJ</label><input id="ng-cpfcnpj" placeholder="000.000.000-00"></div>
-      <div class="field"><label>E-mail</label><input id="ng-email" type="email" placeholder="email@exemplo.com"></div>
-      <div class="field"><label>Telefone</label><input id="ng-tel1" placeholder="(00) 00000-0000"></div>
-      <div class="field"><label>Telefone 2</label><input id="ng-tel2" placeholder="(00) 00000-0000"></div>
-      <div class="field"><label>Contador/Parceiro</label><input id="ng-parceiro"></div>
-      <div class="field"><label>Contador/Contabilidade</label><input id="ng-contabilidade"></div>
-      <div class="field"><label>Tipo de Certificado</label><input id="ng-tipo" placeholder="Ex: e-CPF A1"></div>
-      <div class="field"><label>Data da Venda</label><input id="ng-datavenda" type="date"></div>
-      <div class="field"><label>Data de Vencimento</label><input id="ng-datavenc" type="date"></div>
-      <div class="field"><label>Valor da Venda (R$)</label><input id="ng-valorvenda" type="number" step="0.01" placeholder="0,00"></div>
-      <div class="field"><label>Percentual de Comissão (%)</label><input id="ng-percentual" type="number" step="0.01" placeholder="0,00"></div>
-      <div class="field"><label>Valor da Comissão (R$)</label><input id="ng-valorcomissao" type="number" step="0.01" placeholder="0,00"></div>
-      <div class="field"><label>Forma de Pagamento</label><input id="ng-formapag" placeholder="Pix, Boleto, Cartão..."></div>
-      <div class="field"><label>Banco</label><input id="ng-banco"></div>
-      <div class="field"><label>Chave PIX</label><input id="ng-pix"></div>
-      <div class="field"><label>Pago (Venda)</label><select id="ng-pagovenda"><option value="Não" selected>Não</option><option value="Sim">Sim</option></select></div>
-      <div class="field"><label>Pago (Comissão)</label><select id="ng-pagocomissao"><option value="Não" selected>Não</option><option value="Sim">Sim</option></select></div>
-    </div>
+    <form id="novo-cliente-form" onsubmit="saveNovoCliente(event);return false">
+      <fieldset class="modal-fieldset">
+        <legend>Dados do Cliente</legend>
+        <div class="form-grid">
+          <div class="field form-full"><label for="ng-nome">Nome do Cliente <span aria-hidden="true" style="color:var(--danger)">*</span></label><input id="ng-nome" name="cliente" placeholder="Nome completo" autocomplete="name" required aria-required="true"></div>
+          <div class="field"><label for="ng-cpfcnpj">CPF / CNPJ</label><input id="ng-cpfcnpj" name="cpf_cnpj" placeholder="000.000.000-00" inputmode="numeric" autocomplete="off"></div>
+          <div class="field"><label for="ng-email">E-mail</label><input id="ng-email" name="email" type="email" placeholder="email@exemplo.com" autocomplete="email"></div>
+          <div class="field"><label for="ng-tel1">Telefone</label><input id="ng-tel1" name="telefone1" type="tel" placeholder="(00) 00000-0000" inputmode="tel" autocomplete="tel"></div>
+          <div class="field"><label for="ng-tel2">Telefone 2</label><input id="ng-tel2" name="telefone2" type="tel" placeholder="(00) 00000-0000" inputmode="tel" autocomplete="tel"></div>
+          <div class="field"><label for="ng-parceiro">Contador/Parceiro</label><input id="ng-parceiro" name="contador_parceiro" autocomplete="off"></div>
+          <div class="field"><label for="ng-contabilidade">Contador/Contabilidade</label><input id="ng-contabilidade" name="contador_contabilidade" autocomplete="off"></div>
+        </div>
+      </fieldset>
+      <fieldset class="modal-fieldset">
+        <legend>Certificado &amp; Venda</legend>
+        <div class="form-grid">
+          <div class="field"><label for="ng-tipo">Tipo de Certificado</label><input id="ng-tipo" name="tipo_certificado" placeholder="Ex: e-CPF A1" autocomplete="off"></div>
+          <div class="field"><label for="ng-datavenda">Data da Venda</label><input id="ng-datavenda" name="data_venda" type="date"></div>
+          <div class="field"><label for="ng-datavenc">Data de Vencimento</label><input id="ng-datavenc" name="data_vencimento" type="date"></div>
+          <div class="field"><label for="ng-valorvenda">Valor da Venda (R$)</label><input id="ng-valorvenda" name="valor_venda" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0,00"></div>
+          <div class="field"><label for="ng-percentual">Percentual de Comissão (%)</label><input id="ng-percentual" name="percentual_comissao" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0,00"></div>
+          <div class="field"><label for="ng-valorcomissao">Valor da Comissão (R$)</label><input id="ng-valorcomissao" name="valor_comissao" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0,00"></div>
+        </div>
+      </fieldset>
+      <fieldset class="modal-fieldset">
+        <legend>Pagamento</legend>
+        <div class="form-grid">
+          <div class="field"><label for="ng-formapag">Forma de Pagamento</label><input id="ng-formapag" name="forma_pagamento" placeholder="Pix, Boleto, Cartão..." autocomplete="off"></div>
+          <div class="field"><label for="ng-banco">Banco</label><input id="ng-banco" name="banco" autocomplete="off"></div>
+          <div class="field"><label for="ng-pix">Chave PIX</label><input id="ng-pix" name="chave_pix" autocomplete="off"></div>
+          <div class="field"><label for="ng-pagovenda">Pago (Venda)</label><select id="ng-pagovenda" name="pago_venda"><option value="Não" selected>Não</option><option value="Sim">Sim</option></select></div>
+          <div class="field"><label for="ng-pagocomissao">Pago (Comissão)</label><select id="ng-pagocomissao" name="pago_comissao"><option value="Não" selected>Não</option><option value="Sim">Sim</option></select></div>
+        </div>
+      </fieldset>
+    </form>
   </div>
   <div class="modal-foot">
     <button class="btn" onclick="closeModal(true)">Cancelar</button>
-    <button class="btn btn-primary" id="ng-save-btn" onclick="saveNovoCliente()"><i class="ti ti-device-floppy"></i> Salvar Cliente</button>
+    <button class="btn btn-primary" id="ng-save-btn" onclick="document.getElementById('novo-cliente-form').requestSubmit()"><i class="ti ti-device-floppy" aria-hidden="true"></i> Salvar Cliente</button>
   </div>`;
 }
 
-async function saveNovoCliente(){
-  const nome=document.getElementById('ng-nome').value.trim();
-  if(!nome){alert('Nome obrigatório');return}
+async function saveNovoCliente(event){
+  if(event)event.preventDefault();
+  const form=document.getElementById('novo-cliente-form');
+  if(!form.reportValidity())return;
   const btn=document.getElementById('ng-save-btn');
-  const payload=new URLSearchParams({
-    cliente:nome,
-    cpf_cnpj:document.getElementById('ng-cpfcnpj').value,
-    email:document.getElementById('ng-email').value,
-    telefone1:document.getElementById('ng-tel1').value,
-    telefone2:document.getElementById('ng-tel2').value,
-    contador_parceiro:document.getElementById('ng-parceiro').value,
-    contador_contabilidade:document.getElementById('ng-contabilidade').value,
-    tipo_certificado:document.getElementById('ng-tipo').value,
-    data_venda:document.getElementById('ng-datavenda').value,
-    data_vencimento:document.getElementById('ng-datavenc').value,
-    valor_venda:document.getElementById('ng-valorvenda').value,
-    percentual_comissao:document.getElementById('ng-percentual').value,
-    valor_comissao:document.getElementById('ng-valorcomissao').value,
-    forma_pagamento:document.getElementById('ng-formapag').value,
-    banco:document.getElementById('ng-banco').value,
-    chave_pix:document.getElementById('ng-pix').value,
-    pago_venda:document.getElementById('ng-pagovenda').value,
-    pago_comissao:document.getElementById('ng-pagocomissao').value,
-  });
-  if(btn)btn.disabled=true;
+  const payload=new URLSearchParams(new FormData(form));
+  const originalBtnContent=btn?btn.innerHTML:'';
+  if(btn){
+    btn.disabled=true;
+    btn.innerHTML='<i class="ti ti-loader-2" aria-hidden="true" style="animation:spin 1s linear infinite"></i> Salvando...';
+  }
   try{
     const response=await fetch('/planilha/criar/',{
       method:'POST',
@@ -935,12 +962,11 @@ async function saveNovoCliente(){
     if(!response.ok)throw new Error(data.error||'Falha ao criar cliente');
     showToast(data.drive_updated?'Cliente criado e planilha do Drive atualizada':'Cliente criado localmente (falha ao atualizar Drive)', data.drive_updated?'success':'info');
     closeModal(true);
-    location.reload();
+    setTimeout(()=>location.reload(),900);
   }catch(err){
     console.error(err);
     showToast(err.message||'Erro ao criar cliente','error');
-  }finally{
-    if(btn)btn.disabled=false;
+    if(btn){btn.disabled=false;btn.innerHTML=originalBtnContent;}
   }
 }
 
@@ -990,7 +1016,7 @@ function saveCliente(){
 function renderParceiroModal(box){
   const p=editingId?parceiros.find(x=>x.id===editingId):{};
   box.innerHTML=`
-  <div class="modal-head"><h2>${editingId?'Editar Parceiro':'Novo Parceiro'}</h2><button class="btn btn-sm" onclick="closeModal(true)"><i class="ti ti-x"></i></button></div>
+  <div class="modal-head"><h2 id="modal-dialog-title">${editingId?'Editar Parceiro':'Novo Parceiro'}</h2><button class="btn btn-sm" onclick="closeModal(true)" aria-label="Fechar"><i class="ti ti-x" aria-hidden="true"></i></button></div>
   <div class="modal-body">
     <div class="form-grid">
       <div class="field form-full"><label>Nome / Escritório *</label><input id="p-nome" value="${p.nome||''}" placeholder="Ex: Escritório Contábil Silva"></div>
@@ -1032,7 +1058,7 @@ function saveParceiro(){
 function renderPrecoModal(box){
   const p=editingId?precos.find(x=>x.id==editingId):{};
   box.innerHTML=`
-  <div class="modal-head"><h2>${editingId?'Editar Preço':'Novo Tipo de Certificado'}</h2><button class="btn btn-sm" onclick="closeModal(true)"><i class="ti ti-x"></i></button></div>
+  <div class="modal-head"><h2 id="modal-dialog-title">${editingId?'Editar Preço':'Novo Tipo de Certificado'}</h2><button class="btn btn-sm" onclick="closeModal(true)" aria-label="Fechar"><i class="ti ti-x" aria-hidden="true"></i></button></div>
   <div class="modal-body">
     <div class="form-grid">
       <div class="field form-full"><label>Tipo de Certificado *</label><input id="pr-tipo" value="${p.tipo||''}" placeholder="Ex: e-CPF A1"></div>
@@ -1060,7 +1086,7 @@ function renderContatoModal(box,cid){
   const c=clientes.find(x=>x.id===cid);
   if(!c)return;
   box.innerHTML=`
-  <div class="modal-head"><h2>Registrar Contato — ${c.nome}</h2><button class="btn btn-sm" onclick="closeModal(true)"><i class="ti ti-x"></i></button></div>
+  <div class="modal-head"><h2 id="modal-dialog-title">Registrar Contato — ${c.nome}</h2><button class="btn btn-sm" onclick="closeModal(true)" aria-label="Fechar"><i class="ti ti-x" aria-hidden="true"></i></button></div>
   <div class="modal-body">
     <div class="form-grid">
       <div class="field"><label>Data</label><input id="ct-data" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
