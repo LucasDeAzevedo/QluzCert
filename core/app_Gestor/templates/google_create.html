@@ -1,0 +1,76 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Novo Cliente</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="{% static 'css/cert_manager.css' %}">
+</head>
+<body>
+  <div style="max-width:900px;margin:40px auto;padding:24px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.05);">
+    <h1 style="margin-bottom:4px;font-size:22px;">Novo Cliente</h1>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">O cliente será gravado na planilha do Google Drive junto com os demais registros.</p>
+
+    {% if messages %}
+      <div role="alert">
+        {% for message in messages %}
+          <div style="padding:10px 14px;border-radius:8px;margin-bottom:14px;background:{% if message.tags == 'error' %}#fdecea{% else %}#fff4e5{% endif %};color:#333;font-size:13px">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <fieldset class="modal-fieldset">
+        <legend>Dados do Cliente</legend>
+        <div class="form-grid">
+          <div class="field form-full"><label for="id-cliente">Nome do Cliente <span aria-hidden="true" style="color:var(--danger)">*</span></label><input id="id-cliente" name="cliente" placeholder="Nome completo" autocomplete="name" required aria-required="true"></div>
+          <div class="field"><label for="id-cpf">CPF / CNPJ</label><input id="id-cpf" name="cpf_cnpj" placeholder="000.000.000-00" inputmode="numeric" autocomplete="off"></div>
+          <div class="field"><label for="id-email">E-mail</label><input id="id-email" name="email" type="email" placeholder="email@exemplo.com" autocomplete="email"></div>
+          <div class="field"><label for="id-tel1">Telefone</label><input id="id-tel1" name="telefone1" type="tel" placeholder="(00) 00000-0000" inputmode="tel" autocomplete="tel"></div>
+          <div class="field"><label for="id-tel2">Telefone 2</label><input id="id-tel2" name="telefone2" type="tel" placeholder="(00) 00000-0000" inputmode="tel" autocomplete="tel"></div>
+          <div class="field"><label for="id-parceiro">Contador/Parceiro</label><input id="id-parceiro" name="contador_parceiro" autocomplete="off"></div>
+          <div class="field"><label for="id-contabilidade">Contador/Contabilidade</label><input id="id-contabilidade" name="contador_contabilidade" autocomplete="off"></div>
+        </div>
+      </fieldset>
+      <fieldset class="modal-fieldset">
+        <legend>Certificado &amp; Venda</legend>
+        <div class="form-grid">
+          <div class="field"><label for="id-tipo">Tipo de Certificado</label><input id="id-tipo" name="tipo_certificado" placeholder="Ex: e-CPF A1" autocomplete="off"></div>
+          <div class="field"><label for="id-datavenda">Data da Venda</label><input id="id-datavenda" name="data_venda" type="date"></div>
+          <div class="field"><label for="id-datavenc">Data de Vencimento</label><input id="id-datavenc" name="data_vencimento" type="date"></div>
+          <div class="field"><label for="id-valorvenda">Valor da Venda (R$)</label><input id="id-valorvenda" name="valor_venda" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0,00"></div>
+          <div class="field"><label for="id-percentual">Percentual de Comissão (%)</label><input id="id-percentual" name="percentual_comissao" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0,00"></div>
+          <div class="field"><label for="id-valorcomissao">Valor da Comissão (R$)</label><input id="id-valorcomissao" name="valor_comissao" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0,00"></div>
+        </div>
+      </fieldset>
+      <fieldset class="modal-fieldset">
+        <legend>Pagamento</legend>
+        <div class="form-grid">
+          <div class="field"><label for="id-formapag">Forma de Pagamento</label><input id="id-formapag" name="forma_pagamento" placeholder="Pix, Boleto, Cartão..." autocomplete="off"></div>
+          <div class="field"><label for="id-banco">Banco</label><input id="id-banco" name="banco" autocomplete="off"></div>
+          <div class="field"><label for="id-pix">Chave PIX</label><input id="id-pix" name="chave_pix" autocomplete="off"></div>
+          <div class="field"><label for="id-pagovenda">Pago (Venda)</label>
+            <select id="id-pagovenda" name="pago_venda">
+              <option value="Não" selected>Não</option>
+              <option value="Sim">Sim</option>
+            </select>
+          </div>
+          <div class="field"><label for="id-pagocomissao">Pago (Comissão)</label>
+            <select id="id-pagocomissao" name="pago_comissao">
+              <option value="Não" selected>Não</option>
+              <option value="Sim">Sim</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+      <div style="display:flex;gap:12px;align-items:center;margin-top:22px">
+        <button type="submit" class="btn btn-primary"><i class="ti ti-device-floppy" aria-hidden="true"></i> Salvar Cliente</button>
+        <a href="{% url 'dashboard' %}" class="btn">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</body>
+</html>

@@ -82,16 +82,34 @@ function _ensureToastContainer(){
   if(!c){ c = document.createElement('div'); c.className='toast-container'; document.body.appendChild(c); }
   return c;
 }
+const TOAST_ICONS = {success:'ti-circle-check', error:'ti-alert-circle', warning:'ti-alert-triangle', info:'ti-info-circle'};
 function showToast(message, type='info', timeout=3500){
   try{
     const container = _ensureToastContainer();
     const t = document.createElement('div');
     t.className = 'toast '+(type||'info');
-    t.textContent = message;
+    const icon = document.createElement('i');
+    icon.className = 'toast-icon ti '+(TOAST_ICONS[type]||TOAST_ICONS.info);
+    const text = document.createElement('span');
+    text.className = 'toast-text';
+    text.textContent = message;
+    t.appendChild(icon);
+    t.appendChild(text);
     container.appendChild(t);
-    setTimeout(()=>{t.style.opacity='0';t.style.transform='translateY(6px)';}, timeout-400);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>t.classList.add('toast-visible')));
+    setTimeout(()=>{t.classList.remove('toast-visible');}, timeout-200);
     setTimeout(()=>{try{container.removeChild(t)}catch(e){}}, timeout);
   }catch(e){console.warn('Toast failed',e)}
+}
+
+function showDjangoMessages(){
+  const items = Array.isArray(window.DJANGO_MESSAGES) ? window.DJANGO_MESSAGES : [];
+  const TAG_TO_TYPE = {success:'success', error:'error', warning:'warning', info:'info', debug:'info'};
+  const TAG_TO_TIMEOUT = {success:4200, error:6500, warning:5500, info:4200};
+  items.forEach(function(item, i){
+    const type = TAG_TO_TYPE[item.tags] || 'info';
+    setTimeout(()=>showToast(item.text, type, TAG_TO_TIMEOUT[type]), i*250);
+  });
 }
 
 // Inicializa o menu de salvar (botão único com opções)
@@ -161,6 +179,19 @@ function hideExportOverlay(){
 }
 
 function renderTo(id, html){const el=document.getElementById(id); if(el) el.innerHTML=html}
+function debounce(fn, delay=200){
+  let t;
+  return function(...args){
+    clearTimeout(t);
+    t=setTimeout(()=>fn.apply(this,args), delay);
+  };
+}
+function normalizeQuery(v){return (v||'').trim().toLowerCase()}
+function updateResultCount(elId, shown, total){
+  const el=document.getElementById(elId);
+  if(!el) return;
+  el.textContent = total===0 ? '' : (shown===total ? `${total} resultado${total===1?'':'s'}` : `${shown} de ${total} resultado${total===1?'':'s'}`);
+}
 function statusIndex(status){return STATUS_LIST.indexOf(status)>=0?STATUS_LIST.indexOf(status):0}
 function statusBadge(status){const i=statusIndex(status); return `<span class="badge ${STATUS_CLASSES[i]}">${status||'Novo Lead'}</span>`}
 function parceiroBadge(id){const p=parceiros.find(x=>x.id===id); return p?`<span class="parceiro-tag">${p.nome}</span>`:'—'}
@@ -511,15 +542,16 @@ function renderDashboard(){
 
 // ==================== CLIENTES ====================
 function renderClientes(){
-  const q=(document.getElementById('search-cliente')?.value||'').toLowerCase();
+  const q=normalizeQuery(document.getElementById('search-cliente')?.value);
   const sf=document.getElementById('filter-status')?.value||'';
   let list=clientes.filter(c=>{
-    const match=!q||(c.nome||'').toLowerCase().includes(q)||(c.cpfCnpj||'').includes(q);
+    const match=!q||[c.nome,c.cpfCnpj,c.email,c.telefone].some(v=>(v||'').toLowerCase().includes(q));
     const sm=!sf||c.status===sf;
     return match&&sm;
   });
   const tbody=document.getElementById('clientes-tbody');
   const empty=document.getElementById('clientes-empty');
+  updateResultCount('clientes-count', list.length, clientes.length);
   if(!list.length){tbody.innerHTML='';empty.style.display='';return}
   empty.style.display='none';
   const rows=list.map(c=>{
@@ -535,6 +567,61 @@ function renderClientes(){
     </tr>`;
   });
   tbody.innerHTML=tableRows(rows);
+}
+
+// Colunas de identificação da tabela "Planilha Importada" são localizadas pelo texto do
+// cabeçalho (não pela classe CSS): a classe de cada coluna é derivada do cabeçalho real da
+// planilha em tempo de sincronização (ver normalize_header em core/app/services.py) e pode
+// variar a cada sync (ex: "CPF/CNPJ" vira col-cpfcnpj, não col-cpf-cnpj).
+const PLANILHA_SEARCH_KEYWORDS = ['cliente','nome','cpf','cnpj','email','e-mail','telefone','celular','whatsapp'];
+let _planilhaSearchColIndexes = null;
+function getPlanilhaSearchColIndexes(){
+  if(_planilhaSearchColIndexes) return _planilhaSearchColIndexes;
+  const ths = Array.from(document.querySelectorAll('#planilha-table thead th'));
+  _planilhaSearchColIndexes = ths.reduce((acc, th, i)=>{
+    const text = th.textContent.toLowerCase();
+    if(PLANILHA_SEARCH_KEYWORDS.some(k=>text.includes(k))) acc.push(i);
+    return acc;
+  }, []);
+  return _planilhaSearchColIndexes;
+}
+
+function filterPlanilhaImportada(){
+  const q=normalizeQuery(document.getElementById('search-cliente')?.value);
+  const tbody=document.getElementById('planilha-tbody');
+  const table=document.getElementById('planilha-table');
+  const noMatch=document.getElementById('planilha-no-match');
+  const msg=document.getElementById('planilha-empty-msg');
+  if(!tbody||!table) return;
+  const dataRows=Array.from(tbody.querySelectorAll('tr'));
+
+  if(!dataRows.length){
+    table.style.display='none';
+    if(noMatch){ noMatch.style.display=''; }
+    if(msg) msg.textContent='Nenhuma planilha importada ainda. Use "Sincronizar com o Google Drive".';
+    updateResultCount('planilha-count', 0, 0);
+    return;
+  }
+
+  const cols=getPlanilhaSearchColIndexes();
+  let visibleCount=0;
+  dataRows.forEach(row=>{
+    const cells=row.querySelectorAll('td');
+    const text=cols.map(i=>cells[i]?.textContent||'').join(' ').toLowerCase();
+    const match=!q||text.includes(q);
+    row.style.display=match?'':'none';
+    if(match) visibleCount++;
+  });
+  updateResultCount('planilha-count', visibleCount, dataRows.length);
+  table.style.display='';
+  if(noMatch){
+    if(q&&!visibleCount){
+      noMatch.style.display='';
+      if(msg) msg.textContent='Nenhum cliente encontrado para essa busca.';
+    } else {
+      noMatch.style.display='none';
+    }
+  }
 }
 
 function editCliente(id){editingId=id;openModal('cliente')}
@@ -760,19 +847,45 @@ function editPreco(id){editingId=id;openModal('preco')}
 function deletePreco(id){if(confirm('Remover?')){precos=precos.filter(p=>p.id!==id);save();renderTabela()}}
 
 // ==================== MODAIS ====================
-function openModal(type, extraId){
+let modalTriggerEl=null;
+function openModal(type, extraId, triggerEl){
   const matched = resolveClienteById(extraId || editingId);
   editingId = matched ? matched.id : (extraId || editingId || null);
+  modalTriggerEl=triggerEl||document.activeElement;
   const overlay=document.getElementById('modal-overlay');
   const box=document.getElementById('modal-box');
   overlay.classList.add('open');
   if(type==='cliente')renderClienteModal(box);
+  if(type==='novoCliente')renderNovoClienteModal(box);
   if(type==='parceiro')renderParceiroModal(box);
   if(type==='preco')renderPrecoModal(box);
   if(type==='contato')renderContatoModal(box,extraId||editingId);
   if(type==='pagamento')renderPagamentoModal(box,extraId||editingId);
+  const firstField=box.querySelector('input,select,textarea')||box.querySelector('button');
+  if(firstField)firstField.focus();
 }
-function closeModal(e){if(e.target===document.getElementById('modal-overlay')||e===true){document.getElementById('modal-overlay').classList.remove('open');editingId=null}}
+function closeModal(e){
+  if(e.target===document.getElementById('modal-overlay')||e===true){
+    document.getElementById('modal-overlay').classList.remove('open');
+    editingId=null;
+    if(modalTriggerEl&&typeof modalTriggerEl.focus==='function')modalTriggerEl.focus();
+    modalTriggerEl=null;
+  }
+}
+function handleModalKeydown(e){
+  const overlay=document.getElementById('modal-overlay');
+  if(!overlay||!overlay.classList.contains('open'))return;
+  if(e.key==='Escape'){closeModal(true);return}
+  if(e.key==='Tab'){
+    const box=document.getElementById('modal-box');
+    const focusables=Array.prototype.slice.call(box.querySelectorAll('input,select,textarea,button,a[href]')).filter(function(el){return !el.disabled&&el.offsetParent!==null});
+    if(!focusables.length)return;
+    const first=focusables[0],last=focusables[focusables.length-1];
+    if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}
+    else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
+  }
+}
+document.addEventListener('keydown',handleModalKeydown);
 
 function renderClienteModal(box){
   const c=resolveClienteById(editingId) || {};
@@ -782,13 +895,13 @@ function renderClienteModal(box){
   box.innerHTML=`
   <div class="modal-head">
     <div>
-      <h2>${editingId?'Editar Cliente':'Novo Cliente'}</h2>
+      <h2 id="modal-dialog-title">${editingId?'Editar Cliente':'Novo Cliente'}</h2>
       <div style="font-size:12px;color:var(--muted);margin-top:3px">Cadastro, triagem, documentos e pagamento no mesmo fluxo</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       ${hasPlanilhaId?`<button class="btn btn-sm" onclick="openDocumentosCliente('${c.id || editingId}')"><i class="ti ti-folder"></i> Documentos</button>`:''}
       ${editingId?`<button class="btn btn-sm" onclick="openModal('pagamento','${c.id || editingId}')"><i class="ti ti-qrcode"></i> Pagamento</button>`:''}
-      <button class="btn btn-sm" onclick="closeModal(true)"><i class="ti ti-x"></i></button>
+      <button class="btn btn-sm" onclick="closeModal(true)" aria-label="Fechar"><i class="ti ti-x" aria-hidden="true"></i></button>
     </div>
   </div>
   <div class="modal-body">
@@ -865,6 +978,88 @@ function renderClienteModal(box){
   }
 }
 
+// ==================== NOVO CLIENTE (Planilha real) ====================
+function renderNovoClienteModal(box){
+  box.innerHTML=`
+  <div class="modal-head">
+    <div>
+      <h2 id="modal-dialog-title">Novo Cliente</h2>
+      <div style="font-size:12px;color:var(--muted);margin-top:3px">Grava direto na planilha do Google Drive, junto com os demais registros</div>
+    </div>
+    <button class="btn btn-sm" onclick="closeModal(true)" aria-label="Fechar"><i class="ti ti-x" aria-hidden="true"></i></button>
+  </div>
+  <div class="modal-body">
+    <form id="novo-cliente-form" onsubmit="saveNovoCliente(event);return false">
+      <fieldset class="modal-fieldset">
+        <legend>Dados do Cliente</legend>
+        <div class="form-grid">
+          <div class="field form-full"><label for="ng-nome">Nome do Cliente <span aria-hidden="true" style="color:var(--danger)">*</span></label><input id="ng-nome" name="cliente" placeholder="Nome completo" autocomplete="name" required aria-required="true"></div>
+          <div class="field"><label for="ng-cpfcnpj">CPF / CNPJ</label><input id="ng-cpfcnpj" name="cpf_cnpj" placeholder="000.000.000-00" inputmode="numeric" autocomplete="off"></div>
+          <div class="field"><label for="ng-email">E-mail</label><input id="ng-email" name="email" type="email" placeholder="email@exemplo.com" autocomplete="email"></div>
+          <div class="field"><label for="ng-tel1">Telefone</label><input id="ng-tel1" name="telefone1" type="tel" placeholder="(00) 00000-0000" inputmode="tel" autocomplete="tel"></div>
+          <div class="field"><label for="ng-tel2">Telefone 2</label><input id="ng-tel2" name="telefone2" type="tel" placeholder="(00) 00000-0000" inputmode="tel" autocomplete="tel"></div>
+          <div class="field"><label for="ng-parceiro">Contador/Parceiro</label><input id="ng-parceiro" name="contador_parceiro" autocomplete="off"></div>
+          <div class="field"><label for="ng-contabilidade">Contador/Contabilidade</label><input id="ng-contabilidade" name="contador_contabilidade" autocomplete="off"></div>
+        </div>
+      </fieldset>
+      <fieldset class="modal-fieldset">
+        <legend>Certificado &amp; Venda</legend>
+        <div class="form-grid">
+          <div class="field"><label for="ng-tipo">Tipo de Certificado</label><input id="ng-tipo" name="tipo_certificado" placeholder="Ex: e-CPF A1" autocomplete="off"></div>
+          <div class="field"><label for="ng-datavenda">Data da Venda</label><input id="ng-datavenda" name="data_venda" type="date"></div>
+          <div class="field"><label for="ng-datavenc">Data de Vencimento</label><input id="ng-datavenc" name="data_vencimento" type="date"></div>
+          <div class="field"><label for="ng-valorvenda">Valor da Venda (R$)</label><input id="ng-valorvenda" name="valor_venda" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0,00"></div>
+          <div class="field"><label for="ng-percentual">Percentual de Comissão (%)</label><input id="ng-percentual" name="percentual_comissao" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0,00"></div>
+          <div class="field"><label for="ng-valorcomissao">Valor da Comissão (R$)</label><input id="ng-valorcomissao" name="valor_comissao" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0,00"></div>
+        </div>
+      </fieldset>
+      <fieldset class="modal-fieldset">
+        <legend>Pagamento</legend>
+        <div class="form-grid">
+          <div class="field"><label for="ng-formapag">Forma de Pagamento</label><input id="ng-formapag" name="forma_pagamento" placeholder="Pix, Boleto, Cartão..." autocomplete="off"></div>
+          <div class="field"><label for="ng-banco">Banco</label><input id="ng-banco" name="banco" autocomplete="off"></div>
+          <div class="field"><label for="ng-pix">Chave PIX</label><input id="ng-pix" name="chave_pix" autocomplete="off"></div>
+          <div class="field"><label for="ng-pagovenda">Pago (Venda)</label><select id="ng-pagovenda" name="pago_venda"><option value="Não" selected>Não</option><option value="Sim">Sim</option></select></div>
+          <div class="field"><label for="ng-pagocomissao">Pago (Comissão)</label><select id="ng-pagocomissao" name="pago_comissao"><option value="Não" selected>Não</option><option value="Sim">Sim</option></select></div>
+        </div>
+      </fieldset>
+    </form>
+  </div>
+  <div class="modal-foot">
+    <button class="btn" onclick="closeModal(true)">Cancelar</button>
+    <button class="btn btn-primary" id="ng-save-btn" onclick="document.getElementById('novo-cliente-form').requestSubmit()"><i class="ti ti-device-floppy" aria-hidden="true"></i> Salvar Cliente</button>
+  </div>`;
+}
+
+async function saveNovoCliente(event){
+  if(event)event.preventDefault();
+  const form=document.getElementById('novo-cliente-form');
+  if(!form.reportValidity())return;
+  const btn=document.getElementById('ng-save-btn');
+  const payload=new URLSearchParams(new FormData(form));
+  const originalBtnContent=btn?btn.innerHTML:'';
+  if(btn){
+    btn.disabled=true;
+    btn.innerHTML='<i class="ti ti-loader-2" aria-hidden="true" style="animation:spin 1s linear infinite"></i> Salvando...';
+  }
+  try{
+    const response=await fetch('/planilha/criar/',{
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRFToken':getCsrfToken(),'X-Requested-With':'XMLHttpRequest'},
+      body:payload.toString(),
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'Falha ao criar cliente');
+    showToast(data.drive_updated?'Cliente criado e planilha do Drive atualizada':'Cliente criado localmente (falha ao atualizar Drive)', data.drive_updated?'success':'info');
+    closeModal(true);
+    setTimeout(()=>{ location.hash='clientes'; location.reload(); },900);
+  }catch(err){
+    console.error(err);
+    showToast(err.message||'Erro ao criar cliente','error');
+    if(btn){btn.disabled=false;btn.innerHTML=originalBtnContent;}
+  }
+}
+
 function switchTab(el,tabId){
   el.closest('.tabs').querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
@@ -898,6 +1093,12 @@ function saveCliente(){
   c.solutiChave=document.getElementById('f-chave').value;
   c.kitDestinatario=document.getElementById('f-dest').value;
   c.kitEnviado=document.getElementById('f-kitenviado').value==='true';
+  c.triagem={
+    temCnh:Number(document.getElementById('triagem-temCnh')?.value ?? 0),
+    jaTeveCertificado:Number(document.getElementById('triagem-jaTeveCertificado')?.value ?? 0),
+    temBiometria:Number(document.getElementById('triagem-temBiometria')?.value ?? 0),
+  };
+  c.triagem.resumo=getTriagemSummary(c.triagem);
   if(!editingId)clientes.unshift(c);
   save();closeModal(true);renderClientes();renderDashboard();renderKanban();
   editingId=null;
@@ -906,7 +1107,7 @@ function saveCliente(){
 function renderParceiroModal(box){
   const p=editingId?parceiros.find(x=>x.id===editingId):{};
   box.innerHTML=`
-  <div class="modal-head"><h2>${editingId?'Editar Parceiro':'Novo Parceiro'}</h2><button class="btn btn-sm" onclick="closeModal(true)"><i class="ti ti-x"></i></button></div>
+  <div class="modal-head"><h2 id="modal-dialog-title">${editingId?'Editar Parceiro':'Novo Parceiro'}</h2><button class="btn btn-sm" onclick="closeModal(true)" aria-label="Fechar"><i class="ti ti-x" aria-hidden="true"></i></button></div>
   <div class="modal-body">
     <div class="form-grid">
       <div class="field form-full"><label>Nome / Escritório *</label><input id="p-nome" value="${p.nome||''}" placeholder="Ex: Escritório Contábil Silva"></div>
@@ -948,7 +1149,7 @@ function saveParceiro(){
 function renderPrecoModal(box){
   const p=editingId?precos.find(x=>x.id==editingId):{};
   box.innerHTML=`
-  <div class="modal-head"><h2>${editingId?'Editar Preço':'Novo Tipo de Certificado'}</h2><button class="btn btn-sm" onclick="closeModal(true)"><i class="ti ti-x"></i></button></div>
+  <div class="modal-head"><h2 id="modal-dialog-title">${editingId?'Editar Preço':'Novo Tipo de Certificado'}</h2><button class="btn btn-sm" onclick="closeModal(true)" aria-label="Fechar"><i class="ti ti-x" aria-hidden="true"></i></button></div>
   <div class="modal-body">
     <div class="form-grid">
       <div class="field form-full"><label>Tipo de Certificado *</label><input id="pr-tipo" value="${p.tipo||''}" placeholder="Ex: e-CPF A1"></div>
@@ -970,6 +1171,34 @@ function savePreco(){
   p.preco=parseFloat(document.getElementById('pr-preco').value)||0;
   if(!editingId)precos.push(p);
   save();closeModal(true);renderTabela();editingId=null;
+}
+
+function renderContatoModal(box,cid){
+  const c=clientes.find(x=>x.id===cid);
+  if(!c)return;
+  box.innerHTML=`
+  <div class="modal-head"><h2 id="modal-dialog-title">Registrar Contato — ${c.nome}</h2><button class="btn btn-sm" onclick="closeModal(true)" aria-label="Fechar"><i class="ti ti-x" aria-hidden="true"></i></button></div>
+  <div class="modal-body">
+    <div class="form-grid">
+      <div class="field"><label>Data</label><input id="ct-data" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+      <div class="field"><label>Canal</label><select id="ct-canal"><option>WhatsApp</option><option>Telefone</option><option>E-mail</option><option>Presencial</option></select></div>
+      <div class="field form-full"><label>Resultado / Observação</label><textarea id="ct-obs" placeholder="Ex: Cliente confirmou interesse, aguardando documentos..."></textarea></div>
+      <div class="field"><label>Novo Status</label><select id="ct-status">${STATUS_LIST.map(s=>`<option${c.status===s?' selected':''}>${s}</option>`).join('')}</select></div>
+    </div>
+  </div>
+  <div class="modal-foot">
+    <button class="btn" onclick="closeModal(true)">Cancelar</button>
+    <button class="btn btn-primary" onclick="saveContato('${cid}')">Registrar</button>
+  </div>`;
+}
+
+function saveContato(cid){
+  const c=clientes.find(x=>x.id===cid);
+  if(!c)return;
+  if(!c.historico)c.historico=[];
+  c.historico.push({data:document.getElementById('ct-data').value,canal:document.getElementById('ct-canal').value,obs:document.getElementById('ct-obs').value,dt:new Date().toISOString()});
+  c.status=document.getElementById('ct-status').value;
+  save();closeModal(true);renderClientes();renderRenovacoes();renderKanban();
 }
 
 function renderPagamentoModal(box, cid) {
@@ -1364,6 +1593,7 @@ async function loadAppState(){
   }
   renderDashboard();
   renderClientes();
+  filterPlanilhaImportada();
   renderParceiros();
   renderTabela();
   updateBadges();

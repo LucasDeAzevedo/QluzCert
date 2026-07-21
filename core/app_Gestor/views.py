@@ -1,6 +1,7 @@
 from datetime import date
 from .models import DocumentoCliente, PagamentoCliente
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.views.generic import TemplateView
 from django.contrib import messages
 from django.db import transaction
@@ -268,7 +269,7 @@ def sincronizar_drive(request):
     except Exception as e:
         messages.error(request, f"Erro ao acessar o Google Drive: {str(e)}")
 
-    return redirect('dashboard')
+    return redirect(f"{reverse('dashboard')}#clientes")
 
 
 def alertas_dashboard(request):
@@ -360,9 +361,81 @@ def editar_google_row(request, pk):
         except Exception as e:
             messages.warning(request, f'Registro salvo localmente, falha ao atualizar Drive: {str(e)}')
 
-        return redirect('dashboard')
+        return redirect(f"{reverse('dashboard')}#clientes")
 
     return render(request, 'google_edit.html', {'registro': registro})
+
+
+def criar_google_row(request):
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    if request.method == 'POST':
+        def parse_decimal(name):
+            val = request.POST.get(name)
+            if not val:
+                return None
+            try:
+                return float(val.replace(',', '.'))
+            except Exception:
+                return None
+
+        def parse_date(name):
+            val = request.POST.get(name)
+            if not val:
+                return None
+            try:
+                return date.fromisoformat(val)
+            except Exception:
+                return None
+
+        nome = request.POST.get('cliente', '').strip()
+        if not nome:
+            if is_ajax:
+                return JsonResponse({'error': 'Informe o nome do cliente.'}, status=400)
+            messages.error(request, 'Informe o nome do cliente.')
+            return render(request, 'google_create.html')
+
+        registro = PlanilhaRegistro(
+            cliente=nome,
+            cpf_cnpj=request.POST.get('cpf_cnpj', ''),
+            email=request.POST.get('email', ''),
+            telefone1=request.POST.get('telefone1', ''),
+            telefone2=request.POST.get('telefone2', ''),
+            contador_parceiro=request.POST.get('contador_parceiro', ''),
+            contador_contabilidade=request.POST.get('contador_contabilidade', ''),
+            tipo_certificado=request.POST.get('tipo_certificado', ''),
+            forma_pagamento=request.POST.get('forma_pagamento', ''),
+            banco=request.POST.get('banco', ''),
+            chave_pix=request.POST.get('chave_pix', ''),
+            data_venda=parse_date('data_venda'),
+            data_vencimento=parse_date('data_vencimento'),
+            valor_venda=parse_decimal('valor_venda'),
+            percentual_comissao=parse_decimal('percentual_comissao'),
+            valor_comissao=parse_decimal('valor_comissao'),
+            pago_venda=request.POST.get('pago_venda') == 'Sim',
+            pago_comissao=request.POST.get('pago_comissao') == 'Sim',
+        )
+        registro.save()
+
+        SPREADSHEET_ID = '1L-MX27Y6iwCOyd0e4FqLxZJyRFCpHIP6arYYeFIHLME'
+        drive_ok = False
+        drive_error = ''
+        try:
+            salvar_no_drive_desde_db(SPREADSHEET_ID)
+            drive_ok = True
+        except Exception as e:
+            drive_error = str(e)
+
+        if is_ajax:
+            return JsonResponse({'success': True, 'drive_updated': drive_ok, 'drive_error': drive_error})
+
+        if drive_ok:
+            messages.success(request, 'Cliente criado e planilha no Drive atualizada com sucesso.')
+        else:
+            messages.warning(request, f'Cliente criado localmente, falha ao atualizar Drive: {drive_error}')
+
+        return redirect(f"{reverse('dashboard')}#clientes")
+
+    return render(request, 'google_create.html')
 
 
 @csrf_exempt
