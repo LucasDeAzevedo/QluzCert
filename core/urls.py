@@ -17,11 +17,14 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
-from core.app_Gestor.views import DashboardView, alertas_dashboard, sincronizar_drive, editar_google_row, criar_google_row, app_state, app_state_drive, app_state_download, upload_documento, criar_pagamento_pix, webhook_mercado_pago, documentos_cliente, download_documento, excluir_documento
+from core.app_Gestor.views import DashboardView, LoginPreviewView, CadastroPreviewView, RecuperarSenhaPreviewView, alertas_dashboard, sincronizar_drive, editar_google_row, criar_google_row, app_state, app_state_drive, app_state_download, upload_documento, criar_pagamento_pix, webhook_mercado_pago, documentos_cliente, download_documento, excluir_documento
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', DashboardView.as_view(), name='dashboard'),
+    path('preview/login/', LoginPreviewView.as_view(), name='login_preview'),
+    path('preview/cadastro/', CadastroPreviewView.as_view(), name='cadastro_preview'),
+    path('preview/recuperar-senha/', RecuperarSenhaPreviewView.as_view(), name='recuperar_senha_preview'),
     path('sincronizar/', sincronizar_drive, name='sincronizar_drive'),
     path('alertas/', alertas_dashboard, name='alertas_dashboard'),
     path('planilha/criar/', criar_google_row, name='criar_google_row'),

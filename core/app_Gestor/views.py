@@ -368,6 +368,18 @@ def alertas_dashboard(request):
     return JsonResponse(_build_alert_payload())
 
 
+class LoginPreviewView(TemplateView):
+    template_name = 'login.html'
+
+
+class CadastroPreviewView(TemplateView):
+    template_name = 'cadastro.html'
+
+
+class RecuperarSenhaPreviewView(TemplateView):
+    template_name = 'recuperar-senha.html'
+
+
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class DashboardView(TemplateView):
     template_name = 'dashboard.html'
