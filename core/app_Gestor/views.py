@@ -58,18 +58,6 @@ FRIENDLY_COLUMN_LABELS = {
     'triagem': 'Triagem',
 }
 
-# Colunas que aparecem marcadas por padrão no seletor "Colunas" — as demais
-# ficam disponíveis mas ocultas até o usuário optar por exibi-las.
-DEFAULT_VISIBLE_FIELD_KEYS = {
-    'cliente', 'nome',
-    'cpfcnpj',
-    'tipocertificado', 'tipocert',
-    'contadorparceiro', 'parceiroid',
-    'datavencimento',
-    'status', 'pagovenda',
-}
-
-
 def _normalize_field_key(field_name):
     return re.sub(r'[^a-z0-9]', '', str(field_name or '').lower())
 
@@ -81,7 +69,7 @@ def _annotate_columns(cols):
         annotated.append({
             **col,
             'label': FRIENDLY_COLUMN_LABELS.get(key, col.get('label')),
-            'default_visible': key in DEFAULT_VISIBLE_FIELD_KEYS,
+            'default_visible': True,
         })
     return annotated
 

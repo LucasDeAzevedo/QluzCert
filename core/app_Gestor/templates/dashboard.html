@@ -103,6 +103,8 @@
             <div class="column-selector-dropdown" style="margin-left:auto;position:relative">
               <button type="button" class="btn btn-sm" id="column-selector-toggle"><i class="ti ti-columns"></i>Colunas <i class="ti ti-chevron-down chevron" style="margin-left:4px;font-size:11px"></i></button>
               <div class="column-selector-panel" id="column-selector-panel">
+                <label class="column-toggle-label"><input type="checkbox" id="column-toggle-all"> <strong>Selecionar todas</strong></label>
+                <div class="column-selector-divider"></div>
                 {% for col in google_columns %}
                   <label class="column-toggle-label"><input type="checkbox" class="column-toggle" data-col="{{ col.class }}" {% if col.default_visible %}checked{% endif %}> {{ col.label }}</label>
                 {% endfor %}
@@ -269,15 +271,40 @@
 <script src="{% static 'js/cert_manager.js' %}"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.column-toggle').forEach(function(toggle) {
+    var columnToggles = document.querySelectorAll('.column-toggle');
+    var toggleAll = document.getElementById('column-toggle-all');
+
+    function syncToggleAll() {
+      if (!toggleAll) return;
+      var checkedCount = 0;
+      columnToggles.forEach(function(t) { if (t.checked) checkedCount++; });
+      toggleAll.checked = checkedCount === columnToggles.length;
+      toggleAll.indeterminate = checkedCount > 0 && checkedCount < columnToggles.length;
+    }
+
+    columnToggles.forEach(function(toggle) {
       toggle.addEventListener('change', function() {
         var col = this.dataset.col;
         var show = this.checked;
         document.querySelectorAll('.' + col).forEach(function(cell) {
           cell.style.display = show ? '' : 'none';
         });
+        syncToggleAll();
       });
     });
+
+    if (toggleAll) {
+      toggleAll.addEventListener('change', function() {
+        var show = this.checked;
+        columnToggles.forEach(function(toggle) {
+          if (toggle.checked !== show) {
+            toggle.checked = show;
+            toggle.dispatchEvent(new Event('change'));
+          }
+        });
+      });
+      syncToggleAll();
+    }
 
     var columnPanel = document.getElementById('column-selector-panel');
     var columnToggleBtn = document.getElementById('column-selector-toggle');
