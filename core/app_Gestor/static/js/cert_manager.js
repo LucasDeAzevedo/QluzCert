@@ -582,7 +582,7 @@ function renderClientes(){
       <td>${statusBadge(c.status)}</td>
       <td>${parceiroBadge(c.parceiroId)}</td>
       <td>${vBadge}</td>
-      <td><button class="btn btn-sm" onclick="openDetail('${c.id}')"><i class="ti ti-eye"></i></button> <button class="btn btn-sm" onclick="editCliente('${c.id}')"><i class="ti ti-edit"></i></button> <button class="btn btn-sm" onclick="deleteCliente('${c.id}')" style="color:var(--danger)"><i class="ti ti-trash"></i></button></td>
+      <td><button class="btn btn-sm" onclick="openDetail('${c.id}')"><i class="ti ti-eye"></i></button> <button class="btn btn-sm" onclick="editCliente('${c.id}')"><i class="ti ti-edit"></i></button> <button class="btn btn-sm" onclick="openDocumentosCliente('${c.id}')"><i class="ti ti-folder"></i></button> <button class="btn btn-sm" onclick="deleteCliente('${c.id}')" style="color:var(--danger)"><i class="ti ti-trash"></i></button></td>
     </tr>`;
   });
   tbody.innerHTML=tableRows(rows);
