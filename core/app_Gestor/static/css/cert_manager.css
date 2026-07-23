@@ -7,26 +7,41 @@
     --surface:#ffffff;
     --surface-alt:#f1f5f8;
     --border:#e4e3e0;
-    --border-strong:#c5c4c4;
+    --border-strong:#c9c1b6;
     --text:#161513;
-    --muted:#8a8a89;
-    --muted-strong:#51504e;
+    --muted:#8b8479;
+    --muted-strong:#57544c;
     --accent:#065194;
     --accent-hover:#054170;
     --accent-light:#c6e7ec;
     --success:#3b6d11;
-    --success-bg:#eaf3de;
-    --warn:#854f0b;
-    --warn-bg:#faeeda;
-    --danger:#d91113;
-    --danger-soft:#e34d4e;
-    --danger-bg:#fbeaea;
-    --info:#065194;
-    --info-bg:#c6e7ec;
+    --success-hover:#2c5209;
+    --success-bg:#e7f0d8;
+    --warn:#9a4b0a;
+    --warn-hover:#7a3b08;
+    --warn-bg:#ffffff;
+    --danger:#c31c1e;
+    --danger-hover:#9c1517;
+    --danger-soft:#e0555a;
+    --danger-bg:#f8e3e1;
+    --info:#2e86ab;
+    --info-hover:#216c8a;
+    --info-bg:#d9edf5;
     --purple:#534ab7;
     --purple-bg:#eeedfe;
     --teal:#0f6e56;
+    --teal-hover:#0b5643;
     --teal-bg:#e1f5ee;
+    /* Reservado: sem componente associado ainda (ver DESIGN.md) */
+    --secondary:#1c2a5e;
+    --secondary-hover:#14204a;
+    --secondary-bg:#dde1f0;
+    --tertiary:#b8860b;
+    --tertiary-hover:#8f6a08;
+    --tertiary-bg:#f4e8c8;
+    --quaternary:#b8501f;
+    --quaternary-hover:#943f18;
+    --quaternary-bg:#f6ddc8;
   }
   body{font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;color:var(--text);background:var(--bg);min-height:600px;display:flex;flex-direction:column}
   #app{display:flex;flex:1;min-height:600px}

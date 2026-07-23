@@ -4,29 +4,51 @@ name: QCert Manager
 description: Internal single-page CRM dashboard (Django + vanilla JS) for managing digital certificate (e-CPF/e-CNPJ) sales, clients, partners, pricing, and a Google Sheets-synced sales ledger.
 colors:
   palette-name: "Branding Variant-01"
+
   primary: "#065194"
   primary-hover: "#054170"
-  primary-light: "#c6e7ec"
+  primary-bg: "#c6e7ec"
+
+  secondary: "#1c2a5e"
+  secondary-hover: "#14204a"
+  secondary-bg: "#dde1f0"
+
+  tertiary: "#b8860b"
+  tertiary-hover: "#8f6a08"
+  tertiary-bg: "#f4e8c8"
+
+  quaternary: "#b8501f"
+  quaternary-hover: "#943f18"
+  quaternary-bg: "#f6ddc8"
+
   bg: "#f4f3ee"
-  surface: "#ffffff"
-  surface-alt: "#f1f5f8"
+  surface: "#fffdf7"
+  surface-alt: "#efe9e0"
   border: "#e4e3e0"
-  border-strong: "#c5c4c4"
+  border-strong: "#c9c1b6"
   text: "#161513"
-  muted: "#8a8a89"
-  muted-strong: "#51504e"
+  muted: "#8b8479"
+  muted-strong: "#57544c"
+
   success: "#3b6d11"
-  success-bg: "#eaf3de"
-  warn: "#854f0b"
-  warn-bg: "#faeeda"
-  danger: "#d91113"
-  danger-soft: "#e34d4e"
-  danger-bg: "#fbeaea"
-  info: "#065194"
-  info-bg: "#c6e7ec"
-  purple: "#534ab7"
-  purple-bg: "#eeedfe"
+  success-hover: "#2c5209"
+  success-bg: "#e7f0d8"
+
+  warn: "#9a4b0a"
+  warn-hover: "#7a3b08"
+  warn-bg: "#fbe3cb"
+
+  danger: "#c31c1e"
+  danger-hover: "#9c1517"
+  danger-soft: "#e0555a"
+  danger-bg: "#f8e3e1"
+
+  info: "#2e86ab"
+  info-hover: "#216c8a"
+  info-bg: "#d9edf5"
+
   teal: "#0f6e56"
+  teal-hover: "#0b5643"
   teal-bg: "#e1f5ee"
 typography:
   body-md:
@@ -117,16 +139,20 @@ The interface is built for an operator scanning dense tables and status badges a
 
 ## Colors
 
-The palette follows **Branding Variant-01**: a confident blue brand color, a cool-neutral gray scale, and a three-step red ladder used to grade the severity of overdue/urgent states. The palette also includes a vivid coral/orange family, kept in reserve (not currently wired to any UI role) in case a future secondary accent or highlight is wanted.
+The palette follows **Branding Variant-01**: a confident blue brand color, a cool-neutral gray scale, and a three-step red ladder used to grade the severity of overdue/urgent states. Every color role now also carries a `-hover` step (`--success-hover`, `--warn-hover`, `--danger-hover`, `--info-hover`, `--teal-hover`), even where nothing currently hovers over that color yet, for consistency with `--accent-hover`.
 
-- **Primary (`#065194`, CSS var `--accent`):** The single brand accent. Used for the active sidebar item, primary buttons, links, focus rings, the "current" step in progress indicators, and (via `--info`, which intentionally shares this value) the "Novo Lead" badge — matching how the app's original design treated primary/info as one color before this palette pass split them apart.
+- **Primary (`#065194`, CSS var `--accent`):** The single brand accent. Used for the active sidebar item, primary buttons, links, focus rings, and the "current" step in progress indicators.
 - **Primary-hover (`#054170`, `--accent-hover`):** A manually darkened step of primary (no darker blue swatch exists in the source palette) used only for `.btn-primary:hover`, so filled buttons keep enough contrast when pressed.
-- **Primary-light (`#c6e7ec`, `--accent-light`):** The palette's pale cyan tint, used as a background for hover/active/focus states (active nav item, focused form fields, selected triagem option).
-- **Neutral scale:** `bg` (`#f4f3ee`, page background), `surface` (`#ffffff`, cards/tables/sidebar/topbar/modals), `surface-alt` (`#f1f5f8`, the pale blue-gray step from the palette — table header strips, nav-item hover, generic button hover, distinguishing "hovered/secondary surface" from the plain page background), `border` (`#e4e3e0`, derived light tint for the default 1px divider — the palette has no dedicated hairline-border swatch), `border-strong` (`#c5c4c4`, the palette's mid gray, used where a hover/focus needs a more visible outline than the default border), `text` (`#161513`), `muted` (`#8a8a89`, secondary/meta text: labels, captions, timestamps), `muted-strong` (`#51504e`, slightly stronger secondary text — table header labels).
-- **Danger is a three-step ladder**, all from the palette's red family, used to grade urgency rather than a single flat red: `danger` (`#d91113`, deepest red — already-overdue states, e.g. the "Vencido" badge), `danger-soft` (`#e34d4e`, medium red — due-soon-but-not-yet-overdue states, e.g. the "X dias" badge), both paired with the same pale `danger-bg` (`#fbeaea`) background so only the text color signals severity.
-- **Other status colors**, unchanged from the previous system since Branding Variant-01 doesn't define them: `success` (green, "Emitido" status, paid states), `warn` (amber, "Documentação Pendente", warning alerts), `purple` ("Aguardando Pagamento" badge, partner tags), `teal` ("Agendado para Vídeo" badge, the Kit Soluti panel).
+- **Primary-bg (`#c6e7ec`, CSS var `--accent-light` — named `primary-bg` in the token list for consistency with every other role's `-bg` suffix, kept as `--accent-light` in code to avoid an unrelated rename):** The palette's pale cyan tint, used as a background for hover/active/focus states (active nav item, focused form fields, selected triagem option).
+- **Info (`#2e86ab`, `--info` / `--info-hover` `#216c8a` / `--info-bg` `#d9edf5`):** The "Novo Lead" badge. Previously reused the primary blue directly; now its own distinct teal-blue role, separate from `--accent`.
+- **Neutral scale:** `bg` (`#f4f3ee`, page background), `surface` (`#ffffff`, cards/tables/sidebar/topbar/modals), `surface-alt` (`#f1f5f8`, table header strips, nav-item hover, generic button hover, distinguishing "hovered/secondary surface" from the plain page background), `border` (`#e4e3e0`, derived light tint for the default 1px divider — the palette has no dedicated hairline-border swatch), `border-strong` (`#c9c1b6`, the palette's mid tone, used where a hover/focus needs a more visible outline than the default border), `text` (`#161513`), `muted` (`#8b8479`, secondary/meta text: labels, captions, timestamps), `muted-strong` (`#57544c`, slightly stronger secondary text — table header labels).
 
-> **Note on source fidelity:** the reference image includes a dark-navy swatch mislabeled `#FF3D00` (a copy-paste artifact — that hex is the coral primary from the palette's orange family, not a navy). Rather than guess at the intended value, it was left out of the implementation. The orange family itself (`#ff3d00`/`#ff6e40`/`#ff9e7f`/`#ffcebf`) is documented here but currently unused — a candidate for a secondary accent if one is ever wanted alongside the blue primary.
+> **Deviation from the token list:** the frontmatter's `surface` (`#fffdf7`) and `surface-alt` (`#efe9e0`) are a warm cream/tan pair; in the live UI this read as yellowish rather than neutral, so the implementation keeps the previous pure-white `surface` and cool blue-gray `surface-alt` instead. Everything else in the neutral scale (and the rest of the palette) follows the frontmatter values as written.
+- **Danger is a three-step ladder**, all from the palette's red family, used to grade urgency rather than a single flat red: `danger` (`#c31c1e` / hover `#9c1517`, deepest red — already-overdue states, e.g. the "Vencido" badge), `danger-soft` (`#e0555a`, medium red — due-soon-but-not-yet-overdue states, e.g. the "X dias" badge), both paired with the same pale `danger-bg` (`#f8e3e1`) background so only the text color signals severity.
+- **Other status colors**, unchanged from the previous system since Branding Variant-01 doesn't define them: `success` (green, "Emitido" status, paid states), `warn` (amber, "Documentação Pendente", warning alerts), `purple` ("Aguardando Pagamento" badge, partner tags — kept as-is; the current Branding Variant-01 pass dropped `purple` from the named palette without a replacement, so it stays an unmapped legacy color like `teal`), `teal` ("Agendado para Vídeo" badge, the Kit Soluti panel).
+- **Reserved (not yet wired to any component):** `secondary` (`#1c2a5e` / hover `#14204a` / bg `#dde1f0`), `tertiary` (`#b8860b` / hover `#8f6a08` / bg `#f4e8c8`), `quaternary` (`#b8501f` / hover `#943f18` / bg `#f6ddc8`) — three new brand roles added to the palette with no assigned UI role yet. Defined as CSS custom properties for when a use is picked; don't reach for them ad hoc in the meantime — `purple` and `teal` already cover the app's "extra status color" needs.
+
+> **Note on source fidelity:** the reference image includes a dark-navy swatch mislabeled `#FF3D00` (a copy-paste artifact — that hex is the coral primary from the palette's orange family, not a navy). Rather than guess at the intended value, it was left out of the implementation. The orange family itself (`#ff3d00`/`#ff6e40`/`#ff9e7f`/`#ffcebf`) remains documented here but unused and undefined as a token — a separate, older candidate from the one covered by the `secondary`/`tertiary`/`quaternary` reserve above; the two aren't the same swatches and shouldn't be conflated.
 
 ## Typography
 
@@ -175,4 +201,4 @@ Corner rounding is assigned by container role rather than by a single global rad
 - Don't add `box-shadow` to in-flow panels (cards, tables, sidebar sections) — separate them with the 1px `border` token; reserve shadows for floating overlays (modals, toasts).
 - Do use the `danger`/`danger-soft` pairing to grade urgency (overdue vs. due-soon) instead of introducing a new hue — it's a deliberate two-step ladder off one background tint, not two unrelated colors.
 - Don't reuse `#1d5c8f`/`#185fa5` (the pre-Variant-01 blue) as the primary/accent color — primary is `#065194`, the blue from the Variant-01 palette itself, not the older ad-hoc blue.
-- Known gap: toast notification colors (`.toast.success/.error/.info/.warning` in `dashboard.html`) are still hardcoded gradients, independent of the tokens above — they weren't part of this palette pass and don't yet reference `--success`/`--danger`/etc.
+- Do reference `--success`/`--danger`/`--info`/`--warn` for toast notification colors (`.toast.success/.error/.info/.warning` in `dashboard.html`) — previously hardcoded gradients independent of the tokens above, now resolved to flat token-backed fills.
