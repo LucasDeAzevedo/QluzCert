@@ -1,6 +1,6 @@
 Django==5.2.15
-pandas
-google-api-python-client
-google-auth
-google-auth-httplib2
-openpyxl
+pandas==3.0.3
+google-api-python-client==2.198.0
+google-auth==2.56.2
+google-auth-httplib2==0.4.0
+openpyxl==3.1.5

@@ -101,7 +101,7 @@
             <h3><i class="ti ti-table"></i>Planilha Importada do Google Drive</h3>
             <span id="planilha-count" class="result-count" aria-live="polite"></span>
             <div class="column-selector-dropdown" style="margin-left:auto;position:relative">
-              <button type="button" class="btn btn-sm" id="column-selector-toggle"><i class="ti ti-columns"></i>Colunas <i class="ti ti-chevron-down" style="margin-left:4px;font-size:11px"></i></button>
+              <button type="button" class="btn btn-sm" id="column-selector-toggle"><i class="ti ti-columns"></i>Colunas <i class="ti ti-chevron-down chevron" style="margin-left:4px;font-size:11px"></i></button>
               <div class="column-selector-panel" id="column-selector-panel">
                 {% for col in google_columns %}
                   <label class="column-toggle-label"><input type="checkbox" class="column-toggle" data-col="{{ col.class }}" {% if col.default_visible %}checked{% endif %}> {{ col.label }}</label>

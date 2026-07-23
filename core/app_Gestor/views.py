@@ -12,17 +12,20 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 from django.conf import settings
 import json
+import logging
 import os
 import re
 from core.app.services import importar_planilha_do_drive
 from .services import save_state_to_drive
 from core.app.services import salvar_no_drive_desde_db
-from .models import Colaborador, AppState
+from .models import AppState
 from core.app.models import PlanilhaRegistro
 import io
 import pandas as pd
 from django.http import HttpResponse
 from django.db.models import Sum, Q
+
+logger = logging.getLogger(__name__)
 
 # Traduz nomes técnicos de coluna (vindos direto do cabeçalho da planilha do
 # Google Drive) para rótulos legíveis. Chave = nome do campo normalizado
@@ -349,15 +352,14 @@ def sincronizar_drive(request):
     Sincroniza parceiros e dados da planilha do Google Drive.
     O ID do arquivo fica na URL: https://docs.google.com/spreadsheets/d/ID_AQUI/edit
     """
-    ID_DA_PLANILHA_DO_CLIENTE = 'https://docs.google.com/spreadsheets/d/1L-MX27Y6iwCOyd0e4FqLxZJyRFCpHIP6arYYeFIHLME/edit?gid=1382791784#gid=1382791784'
-
     try:
         with transaction.atomic():
             PlanilhaRegistro.objects.all().delete()
-            total_importado = importar_planilha_do_drive(ID_DA_PLANILHA_DO_CLIENTE)
+            total_importado = importar_planilha_do_drive(settings.GOOGLE_SHEET_ID)
         messages.success(request, f"Sucesso! Banco limpo e {total_importado} parceiros sincronizados da planilha.")
-    except Exception as e:
-        messages.error(request, f"Erro ao acessar o Google Drive: {str(e)}")
+    except Exception:
+        logger.exception('Falha ao sincronizar planilha do Google Drive')
+        messages.error(request, "Erro ao acessar o Google Drive. Tente novamente ou verifique as credenciais.")
 
     return redirect(f"{reverse('dashboard')}#clientes")
 
@@ -444,12 +446,12 @@ def editar_google_row(request, pk):
         registro.save()
 
         # Reescreve a planilha no Drive com os dados atualizados
-        SPREADSHEET_ID = '1L-MX27Y6iwCOyd0e4FqLxZJyRFCpHIP6arYYeFIHLME'
         try:
-            salvar_no_drive_desde_db(SPREADSHEET_ID)
+            salvar_no_drive_desde_db(settings.GOOGLE_SHEET_ID)
             messages.success(request, 'Registro atualizado e planilha no Drive sobrescrita com sucesso.')
-        except Exception as e:
-            messages.warning(request, f'Registro salvo localmente, falha ao atualizar Drive: {str(e)}')
+        except Exception:
+            logger.exception('Falha ao reescrever planilha no Drive após editar registro %s', pk)
+            messages.warning(request, 'Registro salvo localmente, mas falhou ao atualizar o Drive.')
 
         return redirect(f"{reverse('dashboard')}#clientes")
 
@@ -506,13 +508,13 @@ def criar_google_row(request):
         )
         registro.save()
 
-        SPREADSHEET_ID = '1L-MX27Y6iwCOyd0e4FqLxZJyRFCpHIP6arYYeFIHLME'
         drive_ok = False
         drive_error = ''
         try:
-            salvar_no_drive_desde_db(SPREADSHEET_ID)
+            salvar_no_drive_desde_db(settings.GOOGLE_SHEET_ID)
             drive_ok = True
         except Exception as e:
+            logger.exception('Falha ao atualizar planilha no Drive após criar cliente %s', nome)
             drive_error = str(e)
 
         if is_ajax:
@@ -563,13 +565,13 @@ def app_state_drive(request):
     state.data = payload
     state.save()
 
-    SPREADSHEET_ID = '1L-MX27Y6iwCOyd0e4FqLxZJyRFCpHIP6arYYeFIHLME'
     success = False
     try:
-        save_state_to_drive(payload, SPREADSHEET_ID)
+        save_state_to_drive(payload, settings.GOOGLE_SHEET_ID)
         success = True
-    except Exception as e:
-        messages.warning(request, f'Falha ao salvar na nuvem: {str(e)}')
+    except Exception:
+        logger.exception('Falha ao salvar estado do app na nuvem (Drive)')
+        messages.warning(request, 'Falha ao salvar na nuvem. O estado local foi salvo normalmente.')
 
     return JsonResponse({'saved': True, 'drive': success})
 
@@ -816,12 +818,16 @@ def _marcar_pagamento_aprovado(pagamento):
         if registro:
             registro.pago_venda = True
             registro.save(update_fields=['pago_venda'])
-            spreadsheet_id = '1L-MX27Y6iwCOyd0e4FqLxZJyRFCpHIP6arYYeFIHLME'
             try:
-                salvar_no_drive_desde_db(spreadsheet_id)
+                salvar_no_drive_desde_db(settings.GOOGLE_SHEET_ID)
             except Exception:
-                # Não interrompe o webhook caso o Drive esteja indisponível.
-                pass
+                # Não interrompe o webhook caso o Drive esteja indisponível, mas
+                # o pagamento foi marcado como aprovado com a planilha desatualizada
+                # — isso precisa ficar visível no log para investigação manual.
+                logger.exception(
+                    'Pagamento %s aprovado e registro %s marcado como pago, mas falhou ao sincronizar com o Drive',
+                    pagamento.pk, planilha_pk,
+                )
 
 
 @csrf_exempt
@@ -861,4 +867,5 @@ def webhook_mercado_pago(request):
 
         return JsonResponse({'status': 'success'}, status=200)
     except Exception as e:
+        logger.exception('Falha ao processar webhook do Mercado Pago')
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
