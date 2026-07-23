@@ -23,6 +23,10 @@ let precos = DB.get('precos')||[
 let editingId = null;
 let backendAlertData = (typeof window !== 'undefined' && window.INITIAL_ALERTS) ? window.INITIAL_ALERTS : null;
 
+const ROWS_PER_PAGE = 50;
+let clientesPage = 1;
+let planilhaPage = 1;
+
 const STATUS_LIST = ['Novo Lead','Documentação Pendente','Aguardando Pagamento','Agendado para Vídeo','Emitido'];
 const STATUS_CLASSES = ['badge-novo','badge-doc','badge-pag','badge-video','badge-emitido'];
 const STATUS_COLORS = ['info','warn','purple','teal','success'];
@@ -191,6 +195,16 @@ function updateResultCount(elId, shown, total){
   const el=document.getElementById(elId);
   if(!el) return;
   el.textContent = total===0 ? '' : (shown===total ? `${total} resultado${total===1?'':'s'}` : `${shown} de ${total} resultado${total===1?'':'s'}`);
+}
+function renderPaginationControls(containerId, page, totalPages, onGotoFnName){
+  const el=document.getElementById(containerId);
+  if(!el) return;
+  if(totalPages<=1){ el.innerHTML=''; return; }
+  el.innerHTML = `
+    <button type="button" class="btn btn-sm" ${page<=1?'disabled':''} onclick="${onGotoFnName}(${page-1})"><i class="ti ti-chevron-left"></i></button>
+    <span class="pagination-info">Página ${page} de ${totalPages}</span>
+    <button type="button" class="btn btn-sm" ${page>=totalPages?'disabled':''} onclick="${onGotoFnName}(${page+1})"><i class="ti ti-chevron-right"></i></button>
+  `;
 }
 function statusIndex(status){return STATUS_LIST.indexOf(status)>=0?STATUS_LIST.indexOf(status):0}
 function statusBadge(status){const i=statusIndex(status); return `<span class="badge ${STATUS_CLASSES[i]}">${status||'Novo Lead'}</span>`}
@@ -552,9 +566,14 @@ function renderClientes(){
   const tbody=document.getElementById('clientes-tbody');
   const empty=document.getElementById('clientes-empty');
   updateResultCount('clientes-count', list.length, clientes.length);
-  if(!list.length){tbody.innerHTML='';empty.style.display='';return}
+  if(!list.length){tbody.innerHTML='';empty.style.display='';renderPaginationControls('clientes-pagination',1,1,'goToClientesPage');return}
   empty.style.display='none';
-  const rows=list.map(c=>{
+  const totalPages=Math.max(1,Math.ceil(list.length/ROWS_PER_PAGE));
+  if(clientesPage>totalPages) clientesPage=totalPages;
+  if(clientesPage<1) clientesPage=1;
+  const pageStart=(clientesPage-1)*ROWS_PER_PAGE;
+  const pageList=list.slice(pageStart,pageStart+ROWS_PER_PAGE);
+  const rows=pageList.map(c=>{
     const vBadge=formatVencimento(c);
     return`<tr>
       <td><strong style="cursor:pointer;color:var(--accent)" onclick="openDetail('${c.id}')">${c.nome}</strong></td>
@@ -567,7 +586,9 @@ function renderClientes(){
     </tr>`;
   });
   tbody.innerHTML=tableRows(rows);
+  renderPaginationControls('clientes-pagination', clientesPage, totalPages, 'goToClientesPage');
 }
+function goToClientesPage(n){clientesPage=n;renderClientes()}
 
 // Colunas de identificação da tabela "Planilha Importada" são localizadas pelo texto do
 // cabeçalho (não pela classe CSS): a classe de cada coluna é derivada do cabeçalho real da
@@ -600,29 +621,38 @@ function filterPlanilhaImportada(){
     if(noMatch){ noMatch.style.display=''; }
     if(msg) msg.textContent='Nenhuma planilha importada ainda. Use "Sincronizar com o Google Drive".';
     updateResultCount('planilha-count', 0, 0);
+    renderPaginationControls('planilha-pagination', 1, 1, 'goToPlanilhaPage');
     return;
   }
 
   const cols=getPlanilhaSearchColIndexes();
-  let visibleCount=0;
-  dataRows.forEach(row=>{
+  const matches=dataRows.filter(row=>{
     const cells=row.querySelectorAll('td');
     const text=cols.map(i=>cells[i]?.textContent||'').join(' ').toLowerCase();
-    const match=!q||text.includes(q);
-    row.style.display=match?'':'none';
-    if(match) visibleCount++;
+    return !q||text.includes(q);
   });
-  updateResultCount('planilha-count', visibleCount, dataRows.length);
+
+  const totalPages=Math.max(1,Math.ceil(matches.length/ROWS_PER_PAGE));
+  if(planilhaPage>totalPages) planilhaPage=totalPages;
+  if(planilhaPage<1) planilhaPage=1;
+  const pageStart=(planilhaPage-1)*ROWS_PER_PAGE;
+  const visiblePage=new Set(matches.slice(pageStart,pageStart+ROWS_PER_PAGE));
+
+  dataRows.forEach(row=>{ row.style.display=visiblePage.has(row)?'':'none'; });
+
+  updateResultCount('planilha-count', matches.length, dataRows.length);
   table.style.display='';
   if(noMatch){
-    if(q&&!visibleCount){
+    if(q&&!matches.length){
       noMatch.style.display='';
       if(msg) msg.textContent='Nenhum cliente encontrado para essa busca.';
     } else {
       noMatch.style.display='none';
     }
   }
+  renderPaginationControls('planilha-pagination', planilhaPage, totalPages, 'goToPlanilhaPage');
 }
+function goToPlanilhaPage(n){planilhaPage=n;filterPlanilhaImportada()}
 
 function editCliente(id){editingId=id;openModal('cliente')}
 function deleteCliente(id){if(confirm('Remover este cliente?')){clientes=clientes.filter(c=>c.id!==id);save();renderClientes();renderDashboard()}}
