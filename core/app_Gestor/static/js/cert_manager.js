@@ -430,7 +430,7 @@ function renderSaveActions(){
           <option value="server">Servidor</option>
           <option value="local">Local</option>
         </select>
-        <button class="btn" id="sync-server-btn" style="padding:6px 10px">Sincronizar</button>
+        <button class="btn btn-sm" id="sync-server-btn">Sincronizar</button>
         <span id="data-source-indicator" style="font-size:12px;color:var(--muted)"></span>
       </div>
       <div class="save-dropdown" style="position:relative;display:inline-block">
@@ -582,7 +582,7 @@ function renderClientes(){
       <td>${statusBadge(c.status)}</td>
       <td>${parceiroBadge(c.parceiroId)}</td>
       <td>${vBadge}</td>
-      <td><button class="btn btn-sm" onclick="openDetail('${c.id}')"><i class="ti ti-eye"></i></button> <button class="btn btn-sm" onclick="editCliente('${c.id}')"><i class="ti ti-edit"></i></button> <button class="btn btn-sm" onclick="openDocumentosCliente('${c.id}')"><i class="ti ti-folder"></i></button> <button class="btn btn-sm" onclick="deleteCliente('${c.id}')" style="color:var(--danger)"><i class="ti ti-trash"></i></button></td>
+      <td><button class="btn btn-sm" onclick="openDetail('${c.id}')"><i class="ti ti-eye"></i></button> <button class="btn btn-sm" onclick="editCliente('${c.id}')"><i class="ti ti-edit"></i></button> <button class="btn btn-sm" onclick="openDocumentosCliente('${c.id}')"><i class="ti ti-folder"></i></button> <button class="btn btn-sm btn-danger" onclick="deleteCliente('${c.id}')"><i class="ti ti-trash"></i></button></td>
     </tr>`;
   });
   tbody.innerHTML=tableRows(rows);
@@ -790,7 +790,7 @@ async function loadDocumentosCliente(clientId){
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
           <a class="btn btn-sm" href="${doc.download_url}" target="_blank" rel="noopener"><i class="ti ti-download"></i> Baixar</a>
-          <button class="btn btn-sm" onclick="deleteDocumentoCliente('${clientId}', ${doc.id})" style="color:var(--danger)"><i class="ti ti-trash"></i></button>
+          <button class="btn btn-sm btn-danger" onclick="deleteDocumentoCliente('${clientId}', ${doc.id})"><i class="ti ti-trash"></i></button>
         </div>
       </div>
     `).join('');
@@ -860,7 +860,7 @@ function renderParceiros(){
   tbody.innerHTML=parceiros.map(p=>{
     const count=clientes.filter(c=>c.parceiroId===p.id).length;
     return`<tr><td><strong>${p.nome}</strong></td><td>${p.tipo||'—'}</td><td>${p.comissao!=null?fmtPercent(p.comissao):'—'}</td><td>${p.contato||'—'}</td><td><span style="font-size:13px;font-weight:700;color:var(--accent)">${count}</span></td>
-    <td><button class="btn btn-sm" onclick="editParceiro('${p.id}')"><i class="ti ti-edit"></i></button> <button class="btn btn-sm" onclick="deleteParceiro('${p.id}')" style="color:var(--danger)"><i class="ti ti-trash"></i></button></td></tr>`;
+    <td><button class="btn btn-sm" onclick="editParceiro('${p.id}')"><i class="ti ti-edit"></i></button> <button class="btn btn-sm btn-danger" onclick="deleteParceiro('${p.id}')"><i class="ti ti-trash"></i></button></td></tr>`;
   }).join('');
 }
 function editParceiro(id){editingId=id;openModal('parceiro')}
@@ -870,7 +870,7 @@ function deleteParceiro(id){if(confirm('Remover parceiro?')){parceiros=parceiros
 function renderTabela(){
   document.getElementById('tabela-tbody').innerHTML=precos.map(p=>`<tr>
     <td><strong>${p.tipo}</strong></td><td>${p.validade}</td><td style="font-weight:700;color:var(--success)">${fmtMoney(p.preco)}</td>
-    <td><button class="btn btn-sm" onclick="editPreco('${p.id}')"><i class="ti ti-edit"></i></button> <button class="btn btn-sm" onclick="deletePreco('${p.id}')" style="color:var(--danger)"><i class="ti ti-trash"></i></button></td>
+    <td><button class="btn btn-sm" onclick="editPreco('${p.id}')"><i class="ti ti-edit"></i></button> <button class="btn btn-sm btn-danger" onclick="deletePreco('${p.id}')"><i class="ti ti-trash"></i></button></td>
   </tr>`).join('');
 }
 function editPreco(id){editingId=id;openModal('preco')}

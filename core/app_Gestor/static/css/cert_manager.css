@@ -1,3 +1,4 @@
+  @import url('components/buttons.css');
   @font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url('../fonts/inter/inter-latin-400-normal.woff2') format('woff2')}
   @font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:swap;src:url('../fonts/inter/inter-latin-600-normal.woff2') format('woff2')}
   @font-face{font-family:'Inter';font-style:normal;font-weight:700;font-display:swap;src:url('../fonts/inter/inter-latin-700-normal.woff2') format('woff2')}
@@ -146,24 +147,8 @@
   .badge-vencendo{background:var(--danger-bg);color:var(--danger-soft)}
   .badge-vencido{background:var(--danger-bg);color:var(--danger)}
   
-  /* BUTTONS */
-  .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;text-decoration:none;transition:background-color 150ms ease,border-color 150ms ease,transform 120ms ease-out}
-  .btn:hover{background:var(--surface-alt);border-color:var(--border-strong)}
-  .btn:active{transform:scale(0.96)}
-  .btn:has(>i:first-child){padding-left:12px}
-  .btn:has(>i:only-child){padding-left:14px}
-  .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-  .btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
-  .btn-sm{padding:5px 10px;font-size:12px}
-  .btn-sm:has(>i:first-child){padding-left:8px}
-  .btn-sm:has(>i:only-child){padding-left:10px}
-  .btn-danger{background:var(--danger-bg);color:var(--danger);border-color:var(--danger)}
-  .btn-edit{color:var(--accent);border-color:var(--accent)}
-  .btn-edit:hover{background:var(--accent-light)}
-  .btn-success{background:var(--success-bg);color:var(--success);border-color:var(--success)}
-  .table-wrap .btn,.section-actions .btn,.modal-head .btn{position:relative}
-  .table-wrap .btn::after,.section-actions .btn::after,.modal-head .btn::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:100%;height:100%;min-width:40px;min-height:40px}
-  
+  /* BUTTONS — see static/css/components/buttons.css, imported at the top of this file */
+
   /* FORMS */
   .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .form-grid.cols3{grid-template-columns:1fr 1fr 1fr}
